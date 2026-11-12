@@ -9,9 +9,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// ReleaseExpiredOrders finds orders with expires_at < NOW() and payment_status in
-// ('pending', 'pending_verification'), marks them expired, releases reserved ticket
-// counts from ticket_types, and marks tickets as cancelled, all inside a single transaction.
+// ReleaseExpiredOrders finds orders with expires_at < NOW() and payment_status = 'pending',
+// marks them expired, releases reserved ticket counts from ticket_types, and marks tickets as
+// cancelled, all inside a single transaction. Orders in 'pending_verification' are not expired
+// automatically because payment proof has been submitted and awaits organizer review.
 // Returns the number of released expired orders.
 func ReleaseExpiredOrders(ctx context.Context, pool *pgxpool.Pool) (int, error) {
 	if pool == nil {
@@ -29,7 +30,7 @@ func ReleaseExpiredOrders(ctx context.Context, pool *pgxpool.Pool) (int, error) 
 		SELECT id
 		FROM orders
 		WHERE expires_at < NOW()
-		  AND payment_status IN ('pending', 'pending_verification')
+		  AND payment_status = 'pending'
 		FOR UPDATE SKIP LOCKED
 	`)
 	if err != nil {

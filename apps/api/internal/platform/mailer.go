@@ -15,7 +15,8 @@ import (
 )
 
 var (
-	ErrInvalidEmail = errors.New("recipient email and subject must not be empty")
+	ErrInvalidEmail            = errors.New("recipient email and subject must not be empty")
+	ErrHeaderInjectionDetected = errors.New("newline characters detected in email or subject (header injection risk)")
 )
 
 // Mailer defines the contract for sending transactional emails with attachments.
@@ -135,6 +136,9 @@ func (m *SMTPMailer) SendTicketEmail(ctx context.Context, toEmail, subject, html
 	if toEmail == "" || subject == "" {
 		return ErrInvalidEmail
 	}
+	if strings.ContainsAny(toEmail, "\r\n") || strings.ContainsAny(subject, "\r\n") {
+		return ErrHeaderInjectionDetected
+	}
 
 	msg, err := buildTicketEmailMessage(m.from, toEmail, subject, htmlBody, pdfBytes, qrPNG)
 	if err != nil {
@@ -208,3 +212,4 @@ func (m *SMTPMailer) SendTicketEmail(ctx context.Context, toEmail, subject, html
 	_ = client.Quit()
 	return nil
 }
+

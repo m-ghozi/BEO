@@ -63,6 +63,9 @@ func TestReleaseExpiredOrders(t *testing.T) {
 	pool := setupTestDB(t)
 	ctx := context.Background()
 
+	// Drain any leftover expired orders from prior test runs
+	_, _ = ticketing.ReleaseExpiredOrders(ctx, pool)
+
 	// 1. Create organizer and event
 	organizer := createTestUser(t, pool, "expiry-org", "standard")
 	eventsSvc := events.NewService(pool, identity.NewService(pool, testJWTSecret), nil)
@@ -79,11 +82,11 @@ func TestReleaseExpiredOrders(t *testing.T) {
 		t.Fatalf("failed to create test event: %v", err)
 	}
 
-	// 2. Create ticket type with quota=10, reserved_count=2
+	// 2. Create ticket type with quota=10, reserved_count=3 (2 for pending, 1 for pending_verification)
 	ticketTypeID := uuid.NewString()
 	_, err = pool.Exec(ctx, `
 		INSERT INTO ticket_types (id, event_id, name, price, currency, quota, reserved_count, sold_count, sales_start_at, sales_end_at, created_at)
-		VALUES ($1, $2, 'Standard Pass', 100000, 'IDR', 10, 2, 0, NOW() - INTERVAL '1 hour', NOW() + INTERVAL '1 hour', NOW())
+		VALUES ($1, $2, 'Standard Pass', 100000, 'IDR', 10, 3, 0, NOW() - INTERVAL '1 hour', NOW() + INTERVAL '1 hour', NOW())
 	`, ticketTypeID, ev.ID)
 	if err != nil {
 		t.Fatalf("failed to insert ticket type: %v", err)
@@ -100,7 +103,7 @@ func TestReleaseExpiredOrders(t *testing.T) {
 		t.Fatalf("failed to insert expired order: %v", err)
 	}
 
-	// 4. Insert 2 pending tickets for this order
+	// 4. Insert 2 pending tickets for the pending order
 	tkCode1 := "BEO-EXP1" + uuid.NewString()[:4]
 	tkCode2 := "BEO-EXP2" + uuid.NewString()[:4]
 	_, err = pool.Exec(ctx, `
@@ -113,16 +116,36 @@ func TestReleaseExpiredOrders(t *testing.T) {
 		t.Fatalf("failed to insert tickets: %v", err)
 	}
 
-	// 5. Run ReleaseExpiredOrders
+	// 5. Insert an order with expires_at < NOW() and payment_status='pending_verification' (proof submitted)
+	pendingVerificationOrderID := uuid.NewString()
+	_, err = pool.Exec(ctx, `
+		INSERT INTO orders (id, event_id, buyer_email, total_amount, payment_method, payment_status, proof_file_url, expires_at, created_at, updated_at)
+		VALUES ($1, $2, 'proof-buyer@example.com', 100000, 'manual_transfer', 'pending_verification', 'https://example.com/receipt.jpg', $3, NOW() - INTERVAL '25 minutes', NOW() - INTERVAL '25 minutes')
+	`, pendingVerificationOrderID, ev.ID, expiredAt)
+	if err != nil {
+		t.Fatalf("failed to insert pending_verification order: %v", err)
+	}
+
+	// Insert ticket for pending_verification order
+	tkCodeProof := "BEO-PRF" + uuid.NewString()[:4]
+	_, err = pool.Exec(ctx, `
+		INSERT INTO tickets (id, order_id, ticket_type_id, event_id, attendee_name, attendee_email, ticket_code, qr_signature, status, created_at)
+		VALUES ($1, $2, $3, $4, 'Proof Attendee', 'proof@example.com', $5, '', 'pending', NOW())
+	`, uuid.NewString(), pendingVerificationOrderID, ticketTypeID, ev.ID, tkCodeProof)
+	if err != nil {
+		t.Fatalf("failed to insert pending_verification ticket: %v", err)
+	}
+
+	// 6. Run ReleaseExpiredOrders
 	released, err := ticketing.ReleaseExpiredOrders(ctx, pool)
 	if err != nil {
 		t.Fatalf("ReleaseExpiredOrders failed: %v", err)
 	}
-	if released < 1 {
-		t.Fatalf("expected at least 1 order released, got %d", released)
+	if released != 1 {
+		t.Fatalf("expected exactly 1 order released, got %d", released)
 	}
 
-	// 6. Assert order becomes 'expired'
+	// 7. Assert pending order becomes 'expired'
 	var orderStatus string
 	err = pool.QueryRow(ctx, "SELECT payment_status FROM orders WHERE id = $1", orderID).Scan(&orderStatus)
 	if err != nil {
@@ -132,17 +155,27 @@ func TestReleaseExpiredOrders(t *testing.T) {
 		t.Fatalf("expected order payment_status='expired', got %q", orderStatus)
 	}
 
-	// 7. Assert reserved_count == 0
+	// 8. Assert pending_verification order remains 'pending_verification' (NOT expired)
+	var pvOrderStatus string
+	err = pool.QueryRow(ctx, "SELECT payment_status FROM orders WHERE id = $1", pendingVerificationOrderID).Scan(&pvOrderStatus)
+	if err != nil {
+		t.Fatalf("failed to query pending_verification order: %v", err)
+	}
+	if pvOrderStatus != "pending_verification" {
+		t.Fatalf("expected pending_verification order to remain 'pending_verification', got %q", pvOrderStatus)
+	}
+
+	// 9. Assert reserved_count == 1 (only pending order's 2 tickets released; 1 remains for pending_verification)
 	var reservedCount int
 	err = pool.QueryRow(ctx, "SELECT reserved_count FROM ticket_types WHERE id = $1", ticketTypeID).Scan(&reservedCount)
 	if err != nil {
 		t.Fatalf("failed to query ticket type: %v", err)
 	}
-	if reservedCount != 0 {
-		t.Fatalf("expected reserved_count=0, got %d", reservedCount)
+	if reservedCount != 1 {
+		t.Fatalf("expected reserved_count=1, got %d", reservedCount)
 	}
 
-	// 8. Assert tickets are 'cancelled'
+	// 10. Assert tickets for expired order are 'cancelled'
 	rows, err := pool.Query(ctx, "SELECT status FROM tickets WHERE order_id = $1", orderID)
 	if err != nil {
 		t.Fatalf("failed to query tickets: %v", err)
@@ -161,6 +194,16 @@ func TestReleaseExpiredOrders(t *testing.T) {
 	}
 	if ticketCount != 2 {
 		t.Fatalf("expected 2 tickets, got %d", ticketCount)
+	}
+
+	// 11. Assert ticket for pending_verification order remains 'pending'
+	var pvTicketStatus string
+	err = pool.QueryRow(ctx, "SELECT status FROM tickets WHERE order_id = $1", pendingVerificationOrderID).Scan(&pvTicketStatus)
+	if err != nil {
+		t.Fatalf("failed to query pending_verification ticket: %v", err)
+	}
+	if pvTicketStatus != "pending" {
+		t.Fatalf("expected pending_verification ticket status='pending', got %q", pvTicketStatus)
 	}
 }
 

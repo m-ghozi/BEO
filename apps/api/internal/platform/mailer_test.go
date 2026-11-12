@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net"
 	"strings"
@@ -180,5 +181,32 @@ func TestSMTPMailer_NewFromConfig(t *testing.T) {
 	mailer := platform.NewSMTPMailerFromConfig(cfg)
 	if mailer == nil {
 		t.Fatal("expected non-nil SMTPMailer from config")
+	}
+}
+
+func TestSMTPMailer_RejectsHeaderInjection(t *testing.T) {
+	mailer := platform.NewSMTPMailer("localhost", "1025", "", "", "tickets@cerdas.club")
+	ctx := context.Background()
+
+	maliciousEmails := []string{
+		"victim@example.com\r\nBcc: hacker@example.com",
+		"victim@example.com\nBcc: hacker@example.com",
+		"victim@example.com\rBcc: hacker@example.com",
+	}
+	for _, email := range maliciousEmails {
+		if err := mailer.SendTicketEmail(ctx, email, "Safe Subject", "<p>hi</p>", nil, nil); !errors.Is(err, platform.ErrHeaderInjectionDetected) {
+			t.Errorf("expected ErrHeaderInjectionDetected for email %q, got: %v", email, err)
+		}
+	}
+
+	maliciousSubjects := []string{
+		"Safe Subject\r\nBcc: attacker@example.com",
+		"Safe Subject\nBcc: attacker@example.com",
+		"Safe Subject\rBcc: attacker@example.com",
+	}
+	for _, subject := range maliciousSubjects {
+		if err := mailer.SendTicketEmail(ctx, "attendee@example.com", subject, "<p>hi</p>", nil, nil); !errors.Is(err, platform.ErrHeaderInjectionDetected) {
+			t.Errorf("expected ErrHeaderInjectionDetected for subject %q, got: %v", subject, err)
+		}
 	}
 }
