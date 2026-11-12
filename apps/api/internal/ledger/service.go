@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -177,6 +178,20 @@ func (s *Service) RequestPayout(ctx context.Context, organizerID string, in Payo
 	`, uuid.NewString(), organizerID, -in.Amount)
 	if err != nil {
 		return PayoutRequest{}, fmt.Errorf("insert payout_debit: %w", err)
+	}
+
+	auditPayload, err := json.Marshal(map[string]any{
+		"payout_id": pr.ID,
+		"amount":    pr.Amount,
+	})
+	if err != nil {
+		return PayoutRequest{}, fmt.Errorf("marshal payout audit payload: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO audit_events (id, event_id, actor_id, event_category, payload, created_at)
+		VALUES ($1, NULL, $2, 'payout_requested', $3, NOW())
+	`, uuid.NewString(), organizerID, auditPayload); err != nil {
+		return PayoutRequest{}, fmt.Errorf("insert payout audit event: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {

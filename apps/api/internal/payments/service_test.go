@@ -334,6 +334,20 @@ func TestVerifyManualOrder_RejectReleasesQuota(t *testing.T) {
 	if ledgerCount != 0 {
 		t.Fatalf("expected 0 ledger_entries, got %d", ledgerCount)
 	}
+
+	var auditOrderID, auditReason string
+	var auditApprove bool
+	err = pool.QueryRow(ctx, `
+		SELECT payload->>'order_id', (payload->>'approve')::boolean, payload->>'reason'
+		FROM audit_events
+		WHERE event_id = $1 AND actor_id = $2 AND event_category = 'manual_payment_verification'
+	`, ev.ID, organizer.ID).Scan(&auditOrderID, &auditApprove, &auditReason)
+	if err != nil {
+		t.Fatalf("query manual_payment_verification audit_events: %v", err)
+	}
+	if auditOrderID != ord.ID || auditApprove != false || auditReason != "blurry receipt" {
+		t.Fatalf("unexpected audit payload: order_id=%q approve=%v reason=%q", auditOrderID, auditApprove, auditReason)
+	}
 }
 
 func TestRequestPayout_PreventsOverdraw(t *testing.T) {
@@ -445,5 +459,114 @@ func TestRequestPayout_PreventsOverdraw(t *testing.T) {
 	})
 	if !errors.Is(err, ledger.ErrInsufficientBalance) {
 		t.Fatalf("expected ErrInsufficientBalance on second overdraw, got %v", err)
+	}
+
+	var auditPayoutID string
+	var auditAmount int64
+	err = pool.QueryRow(ctx, `
+		SELECT payload->>'payout_id', (payload->>'amount')::bigint
+		FROM audit_events
+		WHERE actor_id = $1 AND event_category = 'payout_requested'
+	`, organizer.ID).Scan(&auditPayoutID, &auditAmount)
+	if err != nil {
+		t.Fatalf("query payout_requested audit_events: %v", err)
+	}
+	if auditPayoutID != pr.ID || auditAmount != 100000 {
+		t.Fatalf("unexpected payout audit payload: payout_id=%q amount=%d", auditPayoutID, auditAmount)
+	}
+}
+
+func TestHandleDuitkuWebhook_RejectsEmptyAPIKeyAndAmountMismatch(t *testing.T) {
+	pool := setupTestDB(t)
+	defer pool.Close()
+
+	ctx := context.Background()
+	identitySvc := identity.NewService(pool, testJWTSecret)
+	organizer := createTestUser(t, pool, "org-guard", "standard")
+	buyer := createTestUser(t, pool, "buyer-guard", "standard")
+	ev := createPublishedEvent(t, pool, identitySvc, organizer.ID, "conference")
+
+	salesStart := time.Now().Add(-1 * time.Hour)
+	ticketingSvc := ticketing.NewService(pool, identitySvc, testQRHMACSecret)
+	tt, err := ticketingSvc.CreateTicketType(ctx, ev.ID, organizer.ID, ticketing.CreateTicketTypeInput{
+		Name:         "Guard Pass",
+		Price:        100000,
+		Currency:     "IDR",
+		Quota:        5,
+		SalesStartAt: &salesStart,
+		SalesEndAt:   time.Now().Add(24 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("CreateTicketType failed: %v", err)
+	}
+
+	ord, err := ticketingSvc.ReserveOrder(ctx, ticketing.ReserveOrderInput{
+		EventID:       ev.ID,
+		TicketTypeID:  tt.ID,
+		BuyerUserID:   &buyer.ID,
+		BuyerEmail:    buyer.Email,
+		PaymentMethod: "duitku",
+		Attendees: []ticketing.AttendeeInput{
+			{Name: "Dan", Email: "dan@example.com"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ReserveOrder failed: %v", err)
+	}
+
+	ledgerSvc := ledger.NewService(pool)
+
+	// 1. Empty API key must be rejected even if signature matches empty key.
+	emptyKeySvc := payments.NewService(
+		pool,
+		identitySvc,
+		ledgerSvc,
+		&stubDuitkuClient{},
+		testQRHMACSecret,
+		testDuitkuMerchantCode,
+		"",
+		"",
+		"",
+	)
+	err = emptyKeySvc.HandleDuitkuWebhook(ctx, payments.DuitkuCallback{
+		MerchantCode:    testDuitkuMerchantCode,
+		Amount:          "100000",
+		MerchantOrderID: ord.ID,
+		ResultCode:      "00",
+		Signature:       duitkuSignature(testDuitkuMerchantCode, "100000", ord.ID, ""),
+	})
+	if !errors.Is(err, payments.ErrInvalidSignature) {
+		t.Fatalf("expected ErrInvalidSignature for empty API key, got %v", err)
+	}
+
+	// 2. Valid signature with mismatched amount must be rejected without confirming order.
+	paymentSvc := payments.NewService(
+		pool,
+		identitySvc,
+		ledgerSvc,
+		&stubDuitkuClient{},
+		testQRHMACSecret,
+		testDuitkuMerchantCode,
+		testDuitkuAPIKey,
+		"",
+		"",
+	)
+	err = paymentSvc.HandleDuitkuWebhook(ctx, payments.DuitkuCallback{
+		MerchantCode:    testDuitkuMerchantCode,
+		Amount:          "50000",
+		MerchantOrderID: ord.ID,
+		ResultCode:      "00",
+		Signature:       duitkuSignature(testDuitkuMerchantCode, "50000", ord.ID, testDuitkuAPIKey),
+	})
+	if !errors.Is(err, payments.ErrAmountMismatch) {
+		t.Fatalf("expected ErrAmountMismatch for mismatched amount, got %v", err)
+	}
+
+	var paymentStatus string
+	if err := pool.QueryRow(ctx, "SELECT payment_status FROM orders WHERE id = $1", ord.ID).Scan(&paymentStatus); err != nil {
+		t.Fatalf("query order status: %v", err)
+	}
+	if paymentStatus != "pending" {
+		t.Fatalf("expected order to remain 'pending', got %q", paymentStatus)
 	}
 }

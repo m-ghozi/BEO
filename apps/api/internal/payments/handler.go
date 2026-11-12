@@ -59,7 +59,7 @@ func writeError(w http.ResponseWriter, status int, message string) {
 
 func writeServiceError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, ErrInvalidInput), errors.Is(err, ledger.ErrInvalidInput):
+	case errors.Is(err, ErrInvalidInput), errors.Is(err, ErrAmountMismatch), errors.Is(err, ledger.ErrInvalidInput):
 		writeError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, ErrInvalidSignature):
 		writeError(w, http.StatusUnauthorized, err.Error())

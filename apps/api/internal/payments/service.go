@@ -2,11 +2,14 @@ package payments
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -20,6 +23,7 @@ var (
 	ErrForbidden         = errors.New("forbidden")
 	ErrOrderNotFound     = errors.New("order not found")
 	ErrInvalidSignature  = errors.New("invalid duitku signature")
+	ErrAmountMismatch    = errors.New("payment amount mismatch")
 	ErrInvalidOrderState = errors.New("order is not in a valid state for this operation")
 )
 
@@ -123,6 +127,9 @@ func (s *Service) HandleDuitkuWebhook(ctx context.Context, payload DuitkuCallbac
 	if payload.MerchantOrderID == "" || payload.MerchantCode == "" {
 		return ErrInvalidInput
 	}
+	if s.duitkuAPIKey == "" {
+		return fmt.Errorf("%w: duitku API key is not configured", ErrInvalidSignature)
+	}
 	if s.duitkuMerchantCode != "" && payload.MerchantCode != s.duitkuMerchantCode {
 		return ErrInvalidSignature
 	}
@@ -135,6 +142,11 @@ func (s *Service) HandleDuitkuWebhook(ctx context.Context, payload DuitkuCallbac
 		return nil
 	}
 
+	parsedAmount, err := strconv.ParseFloat(payload.Amount, 64)
+	if err != nil {
+		return fmt.Errorf("%w: invalid callback amount %q", ErrAmountMismatch, payload.Amount)
+	}
+
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin duitku webhook tx: %w", err)
@@ -142,12 +154,17 @@ func (s *Service) HandleDuitkuWebhook(ctx context.Context, payload DuitkuCallbac
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	var paymentStatus string
-	err = tx.QueryRow(ctx, "SELECT payment_status FROM orders WHERE id = $1 FOR UPDATE", payload.MerchantOrderID).Scan(&paymentStatus)
+	var totalAmount float64
+	err = tx.QueryRow(ctx, "SELECT payment_status, total_amount::float8 FROM orders WHERE id = $1 FOR UPDATE", payload.MerchantOrderID).Scan(&paymentStatus, &totalAmount)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrOrderNotFound
 		}
 		return fmt.Errorf("lock order: %w", err)
+	}
+
+	if math.Abs(parsedAmount-totalAmount) > 0.01 {
+		return fmt.Errorf("%w: got %v, expected %v", ErrAmountMismatch, parsedAmount, totalAmount)
 	}
 
 	if paymentStatus == "paid" {
@@ -263,6 +280,21 @@ func (s *Service) VerifyManualOrder(ctx context.Context, orderID, actorID string
 		if err := s.rejectOrderTx(ctx, tx, orderID); err != nil {
 			return err
 		}
+	}
+
+	auditPayload, err := json.Marshal(map[string]any{
+		"order_id": orderID,
+		"approve":  approve,
+		"reason":   strings.TrimSpace(reason),
+	})
+	if err != nil {
+		return fmt.Errorf("marshal verification audit payload: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO audit_events (id, event_id, actor_id, event_category, payload, created_at)
+		VALUES ($1, $2, $3, 'manual_payment_verification', $4, NOW())
+	`, uuid.NewString(), eventID, actorID, auditPayload); err != nil {
+		return fmt.Errorf("insert verification audit event: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
