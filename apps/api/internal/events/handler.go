@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/cerdas-club/beo/apps/api/internal/identity"
@@ -82,7 +83,24 @@ func (h *Handler) handleCreateEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleListEvents(w http.ResponseWriter, r *http.Request) {
-	evts, err := h.svc.ListEvents(r.Context())
+	limit := 50
+	offset := 0
+
+	if lStr := r.URL.Query().Get("limit"); lStr != "" {
+		if l, err := strconv.Atoi(lStr); err == nil && l > 0 {
+			limit = l
+		}
+	}
+	if oStr := r.URL.Query().Get("offset"); oStr != "" {
+		if o, err := strconv.Atoi(oStr); err == nil && o >= 0 {
+			offset = o
+		}
+	}
+
+	evts, err := h.svc.ListEvents(r.Context(), ListEventsOptions{
+		Limit:  limit,
+		Offset: offset,
+	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list events")
 		return
@@ -216,3 +234,4 @@ func (h *Handler) handleListPosts(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, posts)
 }
+

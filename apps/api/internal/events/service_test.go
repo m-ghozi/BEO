@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -118,7 +119,7 @@ func TestCreateEvent_SupportsAllFourTypes(t *testing.T) {
 			now := time.Now().UTC().Truncate(time.Second)
 			startAt := now.Add(24 * time.Hour)
 			endAt := now.Add(30 * time.Hour)
-			slug := fmt.Sprintf("event-%s-%s", evtType, uuid.NewString()[:8])
+			slug := fmt.Sprintf("event-%s-%s", strings.ReplaceAll(string(evtType), "_", "-"), uuid.NewString()[:8])
 
 			in := events.CreateEventInput{
 				Title:          fmt.Sprintf("Title for %s", evtType),
@@ -194,6 +195,38 @@ func TestCreateEvent_SupportsAllFourTypes(t *testing.T) {
 		}
 		if !errors.Is(err, events.ErrInvalidEventType) {
 			t.Errorf("expected ErrInvalidEventType, got: %v", err)
+		}
+	})
+
+	// Test invalid slug rejection
+	t.Run("rejects_invalid_slugs", func(t *testing.T) {
+		now := time.Now().UTC().Truncate(time.Second)
+		invalidSlugs := []string{
+			"slug with spaces",
+			"slug/with/slashes",
+			"slug?with=query",
+			"slug!@#$",
+			"-leading-hyphen",
+			"trailing-hyphen-",
+			"double--hyphen",
+			"",
+		}
+
+		for _, badSlug := range invalidSlugs {
+			in := events.CreateEventInput{
+				Title:     "Event with Bad Slug",
+				Slug:      badSlug,
+				EventType: events.EventTypeCommunity,
+				StartAt:   now.Add(24 * time.Hour),
+				EndAt:     now.Add(28 * time.Hour),
+			}
+			_, err := svc.CreateEvent(ctx, organizer.ID, in)
+			if err == nil {
+				t.Errorf("expected error for invalid slug %q, got nil", badSlug)
+			}
+			if !errors.Is(err, events.ErrInvalidInput) {
+				t.Errorf("expected ErrInvalidInput for slug %q, got %v", badSlug, err)
+			}
 		}
 	})
 }
@@ -526,5 +559,114 @@ func TestEventHTTPHandlers(t *testing.T) {
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected status 201 Created for publish post, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// 8. POST /v1/events with invalid slug format -> 400 Bad Request
+	badSlugBody, _ := json.Marshal(map[string]any{
+		"title":      "Bad Slug Event",
+		"slug":       "invalid slug with spaces",
+		"event_type": "community",
+		"start_at":   now.Add(24 * time.Hour).Format(time.RFC3339),
+		"end_at":     now.Add(28 * time.Hour).Format(time.RFC3339),
+	})
+	req = httptest.NewRequest(http.MethodPost, "/v1/events", bytes.NewReader(badSlugBody))
+	req.Header.Set("Authorization", "Bearer "+orgToken)
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 Bad Request for invalid slug format, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestListEvents_StatusFilteringAndPagination(t *testing.T) {
+	pool := setupTestDB(t)
+	defer pool.Close()
+
+	ctx := context.Background()
+	idSvc := identity.NewService(pool, testJWTSecret)
+	mockPush := &mockPushNotifier{}
+	svc := events.NewService(pool, idSvc, mockPush)
+	handler := events.NewHandler(svc, testJWTSecret)
+
+	mux := http.NewServeMux()
+	handler.RegisterRoutes(mux)
+
+	organizer := createTestUser(t, pool, "pagination-org", "standard", nil)
+	now := time.Now().UTC().Truncate(time.Second)
+
+	// Create a draft event
+	draftEvt, err := svc.CreateEvent(ctx, organizer.ID, events.CreateEventInput{
+		Title:     "Draft Event Title",
+		Slug:      fmt.Sprintf("draft-evt-%s", uuid.NewString()[:8]),
+		EventType: events.EventTypeCommunity,
+		StartAt:   now.Add(10 * time.Hour),
+		EndAt:     now.Add(12 * time.Hour),
+		Status:    events.EventStatusDraft,
+	})
+	if err != nil {
+		t.Fatalf("failed to create draft event: %v", err)
+	}
+
+	// Create 3 published events
+	var pubEvents []events.Event
+	for i := 1; i <= 3; i++ {
+		pubEvt, err := svc.CreateEvent(ctx, organizer.ID, events.CreateEventInput{
+			Title:     fmt.Sprintf("Published Event %d", i),
+			Slug:      fmt.Sprintf("pub-evt-%d-%s", i, uuid.NewString()[:8]),
+			EventType: events.EventTypeCommunity,
+			StartAt:   now.Add(time.Duration(20+i*2) * time.Hour),
+			EndAt:     now.Add(time.Duration(24+i*2) * time.Hour),
+			Status:    events.EventStatusPublished,
+		})
+		if err != nil {
+			t.Fatalf("failed to create published event %d: %v", i, err)
+		}
+		pubEvents = append(pubEvents, pubEvt)
+	}
+
+	// 1. Verify ListEvents filters out draft events
+	allPublished, err := svc.ListEvents(ctx)
+	if err != nil {
+		t.Fatalf("failed to list published events: %v", err)
+	}
+	for _, evt := range allPublished {
+		if evt.ID == draftEvt.ID {
+			t.Errorf("expected draft event %s to NOT be in published listing", draftEvt.ID)
+		}
+		if evt.Status != events.EventStatusPublished {
+			t.Errorf("expected all listed events to be published, got status %s for event %s", evt.Status, evt.ID)
+		}
+	}
+
+	// 2. Verify pagination (Limit & Offset) in service
+	limitedList, err := svc.ListEvents(ctx, events.ListEventsOptions{Limit: 2, Offset: 0})
+	if err != nil {
+		t.Fatalf("failed to list events with limit: %v", err)
+	}
+	if len(limitedList) > 2 {
+		t.Errorf("expected at most 2 events, got %d", len(limitedList))
+	}
+
+	// 3. Verify pagination via HTTP query parameters: GET /v1/events?limit=2&offset=0
+	req := httptest.NewRequest(http.MethodGet, "/v1/events?limit=2&offset=0", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200 OK, got %d: %s", w.Code, w.Body.String())
+	}
+	var httpList []events.Event
+	if err := json.Unmarshal(w.Body.Bytes(), &httpList); err != nil {
+		t.Fatalf("failed to decode http event list: %v", err)
+	}
+	if len(httpList) > 2 {
+		t.Errorf("expected at most 2 events from http query, got %d", len(httpList))
+	}
+	for _, evt := range httpList {
+		if evt.Status != events.EventStatusPublished {
+			t.Errorf("expected published status, got %s", evt.Status)
+		}
 	}
 }

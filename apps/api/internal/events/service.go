@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -23,6 +24,8 @@ var (
 	ErrForbidden        = errors.New("forbidden")
 	ErrSlugExists       = errors.New("event slug already exists")
 )
+
+var slugRegex = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
 type EventType string
 
@@ -158,6 +161,9 @@ func (s *Service) CreateEvent(ctx context.Context, organizerID string, in Create
 	slug := strings.ToLower(strings.TrimSpace(in.Slug))
 	if slug == "" {
 		return Event{}, fmt.Errorf("%w: slug is required", ErrInvalidInput)
+	}
+	if !slugRegex.MatchString(slug) {
+		return Event{}, fmt.Errorf("%w: invalid slug format, must contain only lowercase alphanumeric characters and hyphens", ErrInvalidInput)
 	}
 
 	if !in.EventType.IsValid() {
@@ -488,14 +494,38 @@ func (s *Service) GetEventByID(ctx context.Context, id string) (Event, error) {
 	return evt, nil
 }
 
-// ListEvents returns events ordered by start_at ascending.
-func (s *Service) ListEvents(ctx context.Context) ([]Event, error) {
+type ListEventsOptions struct {
+	Limit  int
+	Offset int
+}
+
+// ListEvents returns published events ordered by start_at ascending with pagination.
+func (s *Service) ListEvents(ctx context.Context, opts ...ListEventsOptions) ([]Event, error) {
+	limit := 50
+	offset := 0
+	if len(opts) > 0 {
+		if opts[0].Limit > 0 {
+			limit = opts[0].Limit
+		}
+		if opts[0].Offset > 0 {
+			offset = opts[0].Offset
+		}
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
 	query := `
 		SELECT id, organizer_id, title, slug, event_type, modules_enabled, start_at, end_at, venue, status, created_at
 		FROM events
+		WHERE status = 'published'
 		ORDER BY start_at ASC
+		LIMIT $1 OFFSET $2
 	`
-	rows, err := s.db.Query(ctx, query)
+	rows, err := s.db.Query(ctx, query, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query events: %w", err)
 	}
@@ -618,3 +648,4 @@ func (s *Service) ListPosts(ctx context.Context, eventID string) ([]Post, error)
 	}
 	return posts, nil
 }
+
