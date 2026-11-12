@@ -24,6 +24,7 @@ var (
 	ErrInvalidRole        = errors.New("invalid event role")
 	ErrInvalidInput       = errors.New("invalid input")
 	ErrUnauthorized       = errors.New("unauthorized")
+	ErrEmptyJWTSecret     = errors.New("jwt secret cannot be empty")
 )
 
 type AccountType string
@@ -56,6 +57,9 @@ type Service struct {
 }
 
 func NewService(db *pgxpool.Pool, jwtSecret string) *Service {
+	if strings.TrimSpace(jwtSecret) == "" {
+		panic("identity: jwtSecret cannot be empty")
+	}
 	return &Service{
 		db:        db,
 		jwtSecret: jwtSecret,

@@ -475,3 +475,67 @@ func TestHTTPHandlersAndAuthMiddleware(t *testing.T) {
 		t.Fatalf("expected 200 or 201 on assign member, got %d: %s", w.Code, w.Body.String())
 	}
 }
+
+func TestJWTSecretValidation_GuardsAgainstEmptySecret(t *testing.T) {
+	dummyUser := identity.User{
+		ID:          "user-123",
+		Email:       "test@example.com",
+		AccountType: "standard",
+	}
+
+	// 1. GenerateJWT with empty or whitespace secret must fail with ErrEmptyJWTSecret
+	_, err := identity.GenerateJWT(dummyUser, "")
+	if !errors.Is(err, identity.ErrEmptyJWTSecret) {
+		t.Fatalf("expected ErrEmptyJWTSecret on empty secret, got: %v", err)
+	}
+	_, err = identity.GenerateJWT(dummyUser, "   ")
+	if !errors.Is(err, identity.ErrEmptyJWTSecret) {
+		t.Fatalf("expected ErrEmptyJWTSecret on whitespace secret, got: %v", err)
+	}
+
+	// 2. ParseJWT with empty or whitespace secret must fail with ErrEmptyJWTSecret
+	_, err = identity.ParseJWT("some.jwt.token", "")
+	if !errors.Is(err, identity.ErrEmptyJWTSecret) {
+		t.Fatalf("expected ErrEmptyJWTSecret on ParseJWT with empty secret, got: %v", err)
+	}
+	_, err = identity.ParseJWT("some.jwt.token", "   ")
+	if !errors.Is(err, identity.ErrEmptyJWTSecret) {
+		t.Fatalf("expected ErrEmptyJWTSecret on ParseJWT with whitespace secret, got: %v", err)
+	}
+
+	// 3. NewService with empty secret must panic
+	assertPanics(t, "NewService with empty secret", func() {
+		identity.NewService(nil, "")
+	})
+	assertPanics(t, "NewService with whitespace secret", func() {
+		identity.NewService(nil, "   ")
+	})
+
+	// 4. AuthMiddleware with empty secret must panic
+	assertPanics(t, "AuthMiddleware with empty secret", func() {
+		identity.AuthMiddleware("")
+	})
+	assertPanics(t, "AuthMiddleware with whitespace secret", func() {
+		identity.AuthMiddleware("   ")
+	})
+
+	// 5. NewHandler with empty secret must panic
+	assertPanics(t, "NewHandler with empty secret", func() {
+		identity.NewHandler(nil, "")
+	})
+	assertPanics(t, "NewHandler with whitespace secret", func() {
+		identity.NewHandler(nil, "   ")
+	})
+}
+
+func assertPanics(t *testing.T, desc string, fn func()) {
+	t.Helper()
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Errorf("expected panic for %s, but did not panic", desc)
+		}
+	}()
+	fn()
+}
+

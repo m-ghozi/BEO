@@ -24,6 +24,9 @@ type Claims struct {
 
 // GenerateJWT creates a signed HS256 JWT for the given user.
 func GenerateJWT(user User, secret string) (string, error) {
+	if strings.TrimSpace(secret) == "" {
+		return "", ErrEmptyJWTSecret
+	}
 	now := time.Now()
 	claims := Claims{
 		UserID:      user.ID,
@@ -42,6 +45,9 @@ func GenerateJWT(user User, secret string) (string, error) {
 
 // ParseJWT validates and parses a signed JWT string into Claims.
 func ParseJWT(tokenStr, secret string) (*Claims, error) {
+	if strings.TrimSpace(secret) == "" {
+		return nil, ErrEmptyJWTSecret
+	}
 	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
@@ -74,6 +80,9 @@ func UserFromContext(ctx context.Context) (Claims, bool) {
 // AuthMiddleware extracts the Bearer token from the Authorization header,
 // validates it using the provided secret, and injects the claims into the request context.
 func AuthMiddleware(jwtSecret string) func(http.Handler) http.Handler {
+	if strings.TrimSpace(jwtSecret) == "" {
+		panic("identity: jwtSecret cannot be empty")
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")

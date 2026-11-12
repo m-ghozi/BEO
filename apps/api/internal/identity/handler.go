@@ -13,6 +13,9 @@ type Handler struct {
 }
 
 func NewHandler(svc *Service, jwtSecret string) *Handler {
+	if strings.TrimSpace(jwtSecret) == "" {
+		panic("identity: jwtSecret cannot be empty")
+	}
 	return &Handler{
 		svc:       svc,
 		jwtSecret: jwtSecret,
