@@ -28,6 +28,8 @@ var (
 	ErrAgencyQuotaExceeded = errors.New("agency quota exceeded")
 	ErrInvalidClaimToken   = errors.New("invalid claim token")
 	ErrAlreadyClaimed      = errors.New("ticket already claimed")
+	ErrTicketNotFound      = errors.New("ticket not found")
+	ErrTicketNotValid      = errors.New("ticket is not valid")
 )
 
 const reservationTTL = 30 * time.Minute
@@ -680,3 +682,108 @@ func (s *Service) ListMyTickets(ctx context.Context, userID string) ([]Ticket, e
 	}
 	return tickets, nil
 }
+
+// TicketDetails combines ticket, event, and ticket type info for rendering PDF/QR.
+type TicketDetails struct {
+	Ticket         Ticket
+	EventTitle     string
+	EventType      string
+	Venue          string
+	StartAt        time.Time
+	EndAt          time.Time
+	TicketTypeName string
+	Price          float64
+	Currency       string
+}
+
+// GetTicketDetails returns full ticket details by ticket code.
+func (s *Service) GetTicketDetails(ctx context.Context, ticketCode string) (TicketDetails, error) {
+	ticketCode = strings.TrimSpace(ticketCode)
+	if ticketCode == "" {
+		return TicketDetails{}, ErrInvalidInput
+	}
+
+	query := `
+		SELECT 
+			t.id, t.order_id, t.ticket_type_id, t.event_id, t.agency_id,
+			t.attendee_name, t.attendee_email, t.ticket_code, t.qr_signature,
+			t.claim_token, t.claimed_by_user_id, t.status, t.checked_in_at, t.checked_in_by, t.created_at,
+			e.title, e.event_type, e.venue, e.start_at, e.end_at,
+			tt.name, tt.price::float8, tt.currency
+		FROM tickets t
+		JOIN events e ON e.id = t.event_id
+		JOIN ticket_types tt ON tt.id = t.ticket_type_id
+		WHERE t.ticket_code = $1
+	`
+	var td TicketDetails
+	err := s.db.QueryRow(ctx, query, ticketCode).Scan(
+		&td.Ticket.ID, &td.Ticket.OrderID, &td.Ticket.TicketTypeID, &td.Ticket.EventID, &td.Ticket.AgencyID,
+		&td.Ticket.AttendeeName, &td.Ticket.AttendeeEmail, &td.Ticket.TicketCode, &td.Ticket.QRSignature,
+		&td.Ticket.ClaimToken, &td.Ticket.ClaimedByUserID, &td.Ticket.Status, &td.Ticket.CheckedInAt, &td.Ticket.CheckedInBy, &td.Ticket.CreatedAt,
+		&td.EventTitle, &td.EventType, &td.Venue, &td.StartAt, &td.EndAt,
+		&td.TicketTypeName, &td.Price, &td.Currency,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return TicketDetails{}, ErrTicketNotFound
+		}
+		return TicketDetails{}, fmt.Errorf("query ticket details: %w", err)
+	}
+
+	return td, nil
+}
+
+// GetTicketQRPNG returns the PNG bytes for a valid ticket's QR code.
+func (s *Service) GetTicketQRPNG(ctx context.Context, ticketCode string) ([]byte, error) {
+	td, err := s.GetTicketDetails(ctx, ticketCode)
+	if err != nil {
+		return nil, err
+	}
+	if td.Ticket.Status != "valid" {
+		return nil, ErrTicketNotValid
+	}
+
+	payload := td.Ticket.QRSignature
+	if payload == "" {
+		payload = SignQR(s.qrHMACSecret, td.Ticket.TicketCode, td.Ticket.EventID)
+	}
+
+	return GenerateQRPNG(payload)
+}
+
+// GetTicketPDFBytes returns the PDF bytes for a valid ticket.
+func (s *Service) GetTicketPDFBytes(ctx context.Context, ticketCode string) ([]byte, error) {
+	td, err := s.GetTicketDetails(ctx, ticketCode)
+	if err != nil {
+		return nil, err
+	}
+	if td.Ticket.Status != "valid" {
+		return nil, ErrTicketNotValid
+	}
+
+	payload := td.Ticket.QRSignature
+	if payload == "" {
+		payload = SignQR(s.qrHMACSecret, td.Ticket.TicketCode, td.Ticket.EventID)
+	}
+	qrPNG, err := GenerateQRPNG(payload)
+	if err != nil {
+		return nil, fmt.Errorf("generate qr png: %w", err)
+	}
+
+	pdfData := TicketPDFData{
+		TicketCode:     td.Ticket.TicketCode,
+		EventTitle:     td.EventTitle,
+		EventType:      td.EventType,
+		Venue:          td.Venue,
+		StartAt:        td.StartAt,
+		EndAt:          td.EndAt,
+		AttendeeName:   td.Ticket.AttendeeName,
+		AttendeeEmail:  td.Ticket.AttendeeEmail,
+		TicketTypeName: td.TicketTypeName,
+		Price:          td.Price,
+		Currency:       td.Currency,
+	}
+
+	return GenerateTicketPDF(pdfData, qrPNG)
+}
+

@@ -3,6 +3,7 @@ package ticketing
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -35,6 +36,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /v1/agency/events/{eventID}/issue", auth(http.HandlerFunc(h.handleIssueAgencyTickets)))
 	mux.Handle("POST /v1/tickets/claim", auth(http.HandlerFunc(h.handleClaimTicket)))
 	mux.Handle("GET /v1/me/tickets", auth(http.HandlerFunc(h.handleListMyTickets)))
+	mux.HandleFunc("GET /v1/tickets/{ticketCode}/pdf", h.handleDownloadTicketPDF)
+	mux.HandleFunc("GET /v1/tickets/{ticketCode}/qr.png", h.handleDownloadTicketQR)
 }
 
 // Routes returns an http.Handler with all ticketing routes registered.
@@ -56,11 +59,11 @@ func writeError(w http.ResponseWriter, status int, message string) {
 
 func writeServiceError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, ErrInvalidInput):
+	case errors.Is(err, ErrInvalidInput), errors.Is(err, ErrTicketNotValid):
 		writeError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, ErrForbidden), errors.Is(err, ErrCFPRequired):
 		writeError(w, http.StatusForbidden, err.Error())
-	case errors.Is(err, ErrEventNotFound), errors.Is(err, ErrTicketTypeNotFound), errors.Is(err, ErrUserNotFound), errors.Is(err, ErrInvalidClaimToken):
+	case errors.Is(err, ErrEventNotFound), errors.Is(err, ErrTicketTypeNotFound), errors.Is(err, ErrUserNotFound), errors.Is(err, ErrInvalidClaimToken), errors.Is(err, ErrTicketNotFound):
 		writeError(w, http.StatusNotFound, err.Error())
 	case errors.Is(err, ErrOutOfStock), errors.Is(err, ErrSalesClosed), errors.Is(err, ErrAgencyQuotaExceeded), errors.Is(err, ErrAlreadyClaimed):
 		writeError(w, http.StatusConflict, err.Error())
@@ -211,4 +214,42 @@ func (h *Handler) handleListMyTickets(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, tickets)
+}
+
+func (h *Handler) handleDownloadTicketQR(w http.ResponseWriter, r *http.Request) {
+	ticketCode := strings.TrimSpace(r.PathValue("ticketCode"))
+	if ticketCode == "" {
+		writeError(w, http.StatusBadRequest, "ticketCode is required")
+		return
+	}
+
+	qrPNG, err := h.svc.GetTicketQRPNG(r.Context(), ticketCode)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=\"%s-qr.png\"", ticketCode))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(qrPNG)
+}
+
+func (h *Handler) handleDownloadTicketPDF(w http.ResponseWriter, r *http.Request) {
+	ticketCode := strings.TrimSpace(r.PathValue("ticketCode"))
+	if ticketCode == "" {
+		writeError(w, http.StatusBadRequest, "ticketCode is required")
+		return
+	}
+
+	pdfBytes, err := h.svc.GetTicketPDFBytes(r.Context(), ticketCode)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.pdf\"", ticketCode))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(pdfBytes)
 }
