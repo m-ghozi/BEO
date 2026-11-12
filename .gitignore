@@ -1,0 +1,6 @@
+.superpowers/
+.env
+*.log
+bin/
+dist/
+node_modules/
