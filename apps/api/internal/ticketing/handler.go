@@ -62,7 +62,7 @@ func writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusForbidden, err.Error())
 	case errors.Is(err, ErrEventNotFound), errors.Is(err, ErrTicketTypeNotFound), errors.Is(err, ErrUserNotFound), errors.Is(err, ErrInvalidClaimToken):
 		writeError(w, http.StatusNotFound, err.Error())
-	case errors.Is(err, ErrOutOfStock), errors.Is(err, ErrAgencyQuotaExceeded), errors.Is(err, ErrAlreadyClaimed):
+	case errors.Is(err, ErrOutOfStock), errors.Is(err, ErrSalesClosed), errors.Is(err, ErrAgencyQuotaExceeded), errors.Is(err, ErrAlreadyClaimed):
 		writeError(w, http.StatusConflict, err.Error())
 	default:
 		writeError(w, http.StatusInternalServerError, "internal server error")

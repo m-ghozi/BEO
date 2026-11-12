@@ -23,6 +23,7 @@ var (
 	ErrTicketTypeNotFound  = errors.New("ticket type not found")
 	ErrUserNotFound        = errors.New("user not found")
 	ErrOutOfStock          = errors.New("ticket out of stock")
+	ErrSalesClosed         = errors.New("ticket sales window is closed")
 	ErrCFPRequired         = errors.New("accepted CFP submission required for this ticket type")
 	ErrAgencyQuotaExceeded = errors.New("agency quota exceeded")
 	ErrInvalidClaimToken   = errors.New("invalid claim token")
@@ -232,13 +233,17 @@ func (s *Service) insertTicket(
 	agencyID *string,
 	attendee AttendeeInput,
 	claimToken, claimedByUserID *string,
+	status string,
 ) (Ticket, error) {
 	suffix, err := randomHex(6)
 	if err != nil {
 		return Ticket{}, fmt.Errorf("generate ticket code: %w", err)
 	}
 	ticketCode := "BEO-" + strings.ToUpper(suffix)
-	qrSig := SignQR(s.qrHMACSecret, ticketCode, eventID)
+	qrSig := ""
+	if status == "valid" {
+		qrSig = SignQR(s.qrHMACSecret, ticketCode, eventID)
+	}
 
 	id := uuid.NewString()
 	query := `
@@ -247,7 +252,7 @@ func (s *Service) insertTicket(
 			attendee_name, attendee_email, ticket_code, qr_signature,
 			claim_token, claimed_by_user_id, status, created_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'valid', NOW())
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
 		RETURNING id, order_id, ticket_type_id, event_id, agency_id,
 			attendee_name, attendee_email, ticket_code, qr_signature,
 			claim_token, claimed_by_user_id, status, checked_in_at, checked_in_by, created_at
@@ -256,7 +261,7 @@ func (s *Service) insertTicket(
 	err = tx.QueryRow(ctx, query,
 		id, orderID, ticketTypeID, eventID, agencyID,
 		strings.TrimSpace(attendee.Name), strings.ToLower(strings.TrimSpace(attendee.Email)),
-		ticketCode, qrSig, claimToken, claimedByUserID,
+		ticketCode, qrSig, claimToken, claimedByUserID, status,
 	).Scan(
 		&tk.ID, &tk.OrderID, &tk.TicketTypeID, &tk.EventID, &tk.AgencyID,
 		&tk.AttendeeName, &tk.AttendeeEmail, &tk.TicketCode, &tk.QRSignature,
@@ -293,20 +298,25 @@ func (s *Service) ReserveOrder(ctx context.Context, in ReserveOrderInput) (Order
 
 	var tt TicketType
 	lockQuery := `
-		SELECT id, event_id, price, quota, allocated_agency_quota, sold_count, reserved_count, requires_accepted_cfp
+		SELECT id, event_id, price, quota, allocated_agency_quota, sold_count, reserved_count, requires_accepted_cfp, sales_start_at, sales_end_at
 		FROM ticket_types
 		WHERE id = $1 AND event_id = $2
 		FOR UPDATE
 	`
 	err = tx.QueryRow(ctx, lockQuery, in.TicketTypeID, in.EventID).Scan(
 		&tt.ID, &tt.EventID, &tt.Price, &tt.Quota, &tt.AllocatedAgencyQuota,
-		&tt.SoldCount, &tt.ReservedCount, &tt.RequiresAcceptedCFP,
+		&tt.SoldCount, &tt.ReservedCount, &tt.RequiresAcceptedCFP, &tt.SalesStartAt, &tt.SalesEndAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Order{}, ErrTicketTypeNotFound
 		}
 		return Order{}, fmt.Errorf("lock ticket type: %w", err)
+	}
+
+	now := time.Now()
+	if now.Before(tt.SalesStartAt) || now.After(tt.SalesEndAt) {
+		return Order{}, ErrSalesClosed
 	}
 
 	if tt.RequiresAcceptedCFP {
@@ -336,6 +346,7 @@ func (s *Service) ReserveOrder(ctx context.Context, in ReserveOrderInput) (Order
 
 	paymentMethod := in.PaymentMethod
 	var paymentStatus string
+	var ticketStatus string
 	var addSold, addReserved int
 	var expiresAt *time.Time
 
@@ -347,6 +358,7 @@ func (s *Service) ReserveOrder(ctx context.Context, in ReserveOrderInput) (Order
 			return Order{}, fmt.Errorf("%w: free ticket must use payment_method=free", ErrInvalidInput)
 		}
 		paymentStatus = "paid"
+		ticketStatus = "valid"
 		addSold = qty
 	} else {
 		if paymentMethod == "" {
@@ -356,8 +368,9 @@ func (s *Service) ReserveOrder(ctx context.Context, in ReserveOrderInput) (Order
 			return Order{}, fmt.Errorf("%w: invalid payment_method for paid ticket", ErrInvalidInput)
 		}
 		paymentStatus = "pending"
+		ticketStatus = "pending"
 		addReserved = qty
-		exp := time.Now().Add(reservationTTL)
+		exp := now.Add(reservationTTL)
 		expiresAt = &exp
 	}
 
@@ -403,7 +416,7 @@ func (s *Service) ReserveOrder(ctx context.Context, in ReserveOrderInput) (Order
 			claimedBy = in.BuyerUserID
 		}
 
-		tk, err := s.insertTicket(ctx, tx, &ord.ID, tt.ID, in.EventID, nil, att, claimToken, claimedBy)
+		tk, err := s.insertTicket(ctx, tx, &ord.ID, tt.ID, in.EventID, nil, att, claimToken, claimedBy, ticketStatus)
 		if err != nil {
 			return Order{}, err
 		}
@@ -558,7 +571,7 @@ func (s *Service) IssueAgencyTickets(ctx context.Context, agencyUserID, eventID 
 	tickets := make([]Ticket, 0, qty)
 	for _, att := range in.Attendees {
 		tok := uuid.NewString()
-		tk, err := s.insertTicket(ctx, tx, &orderID, in.TicketTypeID, eventID, &agencyUserID, att, &tok, nil)
+		tk, err := s.insertTicket(ctx, tx, &orderID, in.TicketTypeID, eventID, &agencyUserID, att, &tok, nil, "valid")
 		if err != nil {
 			return nil, err
 		}

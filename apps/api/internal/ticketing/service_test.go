@@ -413,3 +413,135 @@ func TestReserveOrder_RequiresAcceptedCFP(t *testing.T) {
 		t.Fatalf("unexpected order result: %+v", ord)
 	}
 }
+
+func TestReserveOrder_SalesWindowEnforced(t *testing.T) {
+	pool := setupTestDB(t)
+	defer pool.Close()
+
+	ctx := context.Background()
+	idSvc := identity.NewService(pool, testJWTSecret)
+	evtSvc := events.NewService(pool, idSvc, nil)
+	tktSvc := ticketing.NewService(pool, idSvc, testQRHMACSecret)
+
+	organizer := createTestUser(t, pool, "org-win", "standard")
+	evt, err := evtSvc.CreateEvent(ctx, organizer.ID, events.CreateEventInput{
+		Title:     "Sales Window Event",
+		Slug:      "sales-window-event-" + uuid.NewString()[:8],
+		EventType: "community",
+		StartAt:   time.Now().Add(48 * time.Hour),
+		EndAt:     time.Now().Add(50 * time.Hour),
+		Venue:     "Jakarta",
+	})
+	if err != nil {
+		t.Fatalf("CreateEvent failed: %v", err)
+	}
+
+	// Future sales window (not started yet)
+	futureStart := time.Now().Add(2 * time.Hour)
+	ttFuture, err := tktSvc.CreateTicketType(ctx, evt.ID, organizer.ID, ticketing.CreateTicketTypeInput{
+		Name:         "Future Tier",
+		Price:        0,
+		Currency:     "IDR",
+		Quota:        10,
+		SalesStartAt: &futureStart,
+		SalesEndAt:   time.Now().Add(24 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("CreateTicketType future failed: %v", err)
+	}
+
+	_, err = tktSvc.ReserveOrder(ctx, ticketing.ReserveOrderInput{
+		EventID:       evt.ID,
+		TicketTypeID:  ttFuture.ID,
+		BuyerEmail:    "early@example.com",
+		PaymentMethod: "free",
+		Attendees:     []ticketing.AttendeeInput{{Name: "Early", Email: "early@example.com"}},
+	})
+	if !errors.Is(err, ticketing.ErrSalesClosed) {
+		t.Fatalf("expected ErrSalesClosed before sales_start_at, got %v", err)
+	}
+
+	// Past sales window (already ended)
+	pastStart := time.Now().Add(-24 * time.Hour)
+	ttPast, err := tktSvc.CreateTicketType(ctx, evt.ID, organizer.ID, ticketing.CreateTicketTypeInput{
+		Name:         "Ended Tier",
+		Price:        0,
+		Currency:     "IDR",
+		Quota:        10,
+		SalesStartAt: &pastStart,
+		SalesEndAt:   time.Now().Add(-1 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("CreateTicketType past failed: %v", err)
+	}
+
+	_, err = tktSvc.ReserveOrder(ctx, ticketing.ReserveOrderInput{
+		EventID:       evt.ID,
+		TicketTypeID:  ttPast.ID,
+		BuyerEmail:    "late@example.com",
+		PaymentMethod: "free",
+		Attendees:     []ticketing.AttendeeInput{{Name: "Late", Email: "late@example.com"}},
+	})
+	if !errors.Is(err, ticketing.ErrSalesClosed) {
+		t.Fatalf("expected ErrSalesClosed after sales_end_at, got %v", err)
+	}
+}
+
+func TestReserveOrder_PaidOrderCreatesPendingTickets(t *testing.T) {
+	pool := setupTestDB(t)
+	defer pool.Close()
+
+	ctx := context.Background()
+	idSvc := identity.NewService(pool, testJWTSecret)
+	evtSvc := events.NewService(pool, idSvc, nil)
+	tktSvc := ticketing.NewService(pool, idSvc, testQRHMACSecret)
+
+	organizer := createTestUser(t, pool, "org-paid", "standard")
+	buyer := createTestUser(t, pool, "buyer-paid", "standard")
+	evt, err := evtSvc.CreateEvent(ctx, organizer.ID, events.CreateEventInput{
+		Title:     "Paid Ticket Event",
+		Slug:      "paid-ticket-event-" + uuid.NewString()[:8],
+		EventType: "conference",
+		StartAt:   time.Now().Add(24 * time.Hour),
+		EndAt:     time.Now().Add(28 * time.Hour),
+		Venue:     "Jakarta",
+	})
+	if err != nil {
+		t.Fatalf("CreateEvent failed: %v", err)
+	}
+
+	tt, err := tktSvc.CreateTicketType(ctx, evt.ID, organizer.ID, ticketing.CreateTicketTypeInput{
+		Name:       "Paid VIP",
+		Price:      150000,
+		Currency:   "IDR",
+		Quota:      10,
+		SalesEndAt: time.Now().Add(23 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("CreateTicketType failed: %v", err)
+	}
+
+	ord, err := tktSvc.ReserveOrder(ctx, ticketing.ReserveOrderInput{
+		EventID:       evt.ID,
+		TicketTypeID:  tt.ID,
+		BuyerUserID:   &buyer.ID,
+		BuyerEmail:    buyer.Email,
+		PaymentMethod: "duitku",
+		Attendees:     []ticketing.AttendeeInput{{Name: buyer.Name, Email: buyer.Email}},
+	})
+	if err != nil {
+		t.Fatalf("ReserveOrder paid failed: %v", err)
+	}
+	if ord.PaymentStatus != "pending" {
+		t.Fatalf("expected order payment_status=pending, got %q", ord.PaymentStatus)
+	}
+	if len(ord.Tickets) != 1 {
+		t.Fatalf("expected 1 ticket, got %d", len(ord.Tickets))
+	}
+	if ord.Tickets[0].Status != "pending" {
+		t.Fatalf("expected ticket status=pending, got %q", ord.Tickets[0].Status)
+	}
+	if ord.Tickets[0].QRSignature != "" {
+		t.Fatalf("expected empty qr_signature for pending ticket, got %q", ord.Tickets[0].QRSignature)
+	}
+}
