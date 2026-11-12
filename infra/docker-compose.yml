@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: docker.io/library/postgres:16-alpine
+    container_name: beo_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: beo
+      POSTGRES_USER: beo
+      POSTGRES_PASSWORD: beo
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U beo -d beo"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mailpit:
+    image: docker.io/axllent/mailpit:latest
+    container_name: beo_mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+volumes:
+  postgres_data:
