@@ -90,8 +90,10 @@ func main() {
 
 	identitySvc := identity.NewService(pool, cfg.JWTSecret)
 	pushNotifier := platform.NewExpoPushNotifier(&http.Client{Timeout: 10 * time.Second})
+	mailer := platform.NewSMTPMailerFromConfig(cfg)
 	eventsSvc := events.NewService(pool, identitySvc, pushNotifier)
 	ticketingSvc := ticketing.NewService(pool, identitySvc, cfg.QRHMACSecret)
+	ticketingSvc.SetMailer(mailer)
 	ledgerSvc := ledger.NewService(pool)
 
 	duitkuClient := payments.NewHTTPDuitkuClient(
@@ -113,6 +115,7 @@ func main() {
 		callbackURL,
 		returnURL,
 	)
+	paymentsSvc.SetMailer(mailer)
 
 	auditLogger := fraud.NewAuditLogger(pool, fraud.NoopVectorStore{})
 	checkinSvc := checkin.NewService(pool, identitySvc, auditLogger, cfg.QRHMACSecret)

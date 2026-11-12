@@ -1,12 +1,14 @@
 package payments_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/md5"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -568,5 +570,183 @@ func TestHandleDuitkuWebhook_RejectsEmptyAPIKeyAndAmountMismatch(t *testing.T) {
 	}
 	if paymentStatus != "pending" {
 		t.Fatalf("expected order to remain 'pending', got %q", paymentStatus)
+	}
+}
+
+type sentPaymentEmail struct {
+	toEmail  string
+	subject  string
+	htmlBody string
+	pdfBytes []byte
+	qrPNG    []byte
+}
+
+type mockPaymentMailer struct {
+	mu   sync.Mutex
+	sent []sentPaymentEmail
+}
+
+func (m *mockPaymentMailer) SendTicketEmail(_ context.Context, toEmail, subject, htmlBody string, pdfBytes, qrPNG []byte) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.sent = append(m.sent, sentPaymentEmail{
+		toEmail:  toEmail,
+		subject:  subject,
+		htmlBody: htmlBody,
+		pdfBytes: pdfBytes,
+		qrPNG:    qrPNG,
+	})
+	return nil
+}
+
+func TestHandleDuitkuWebhook_DispatchesTicketEmails(t *testing.T) {
+	pool := setupTestDB(t)
+	defer pool.Close()
+
+	ctx := context.Background()
+	identitySvc := identity.NewService(pool, testJWTSecret)
+	organizer := createTestUser(t, pool, "org-duitku-mail", "standard")
+	buyer := createTestUser(t, pool, "buyer-duitku-mail", "standard")
+	ev := createPublishedEvent(t, pool, identitySvc, organizer.ID, "conference")
+
+	ticketingSvc := ticketing.NewService(pool, identitySvc, testQRHMACSecret)
+	tt, err := ticketingSvc.CreateTicketType(ctx, ev.ID, organizer.ID, ticketing.CreateTicketTypeInput{
+		Name:       "Regular",
+		Price:      100000,
+		Currency:   "IDR",
+		Quota:      10,
+		SalesEndAt: time.Now().Add(24 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("CreateTicketType failed: %v", err)
+	}
+
+	ord, err := ticketingSvc.ReserveOrder(ctx, ticketing.ReserveOrderInput{
+		EventID:       ev.ID,
+		TicketTypeID:  tt.ID,
+		BuyerUserID:   &buyer.ID,
+		BuyerEmail:    buyer.Email,
+		PaymentMethod: "duitku",
+		Attendees: []ticketing.AttendeeInput{
+			{Name: buyer.Name, Email: buyer.Email},
+			{Name: "Guest Two", Email: "guest2@example.com"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ReserveOrder failed: %v", err)
+	}
+
+	ledgerSvc := ledger.NewService(pool)
+	mailer := &mockPaymentMailer{}
+	paymentSvc := payments.NewService(
+		pool,
+		identitySvc,
+		ledgerSvc,
+		&stubDuitkuClient{},
+		testQRHMACSecret,
+		testDuitkuMerchantCode,
+		testDuitkuAPIKey,
+		"",
+		"",
+	)
+	paymentSvc.SetMailer(mailer)
+
+	cb := payments.DuitkuCallback{
+		MerchantCode:    testDuitkuMerchantCode,
+		Amount:          "200000",
+		MerchantOrderID: ord.ID,
+		ResultCode:      "00",
+		Reference:       "DUITKU-MAIL-01",
+		Signature:       duitkuSignature(testDuitkuMerchantCode, "200000", ord.ID, testDuitkuAPIKey),
+	}
+	if err := paymentSvc.HandleDuitkuWebhook(ctx, cb); err != nil {
+		t.Fatalf("HandleDuitkuWebhook failed: %v", err)
+	}
+	if len(mailer.sent) != 2 {
+		t.Fatalf("expected 2 emails dispatched on webhook confirmation, got %d", len(mailer.sent))
+	}
+	for i, email := range mailer.sent {
+		if !bytes.HasPrefix(email.pdfBytes, []byte("%PDF-")) {
+			t.Fatalf("email %d: expected PDF attachment", i)
+		}
+		if !bytes.HasPrefix(email.qrPNG, []byte("\x89PNG")) {
+			t.Fatalf("email %d: expected PNG attachment", i)
+		}
+	}
+
+	// Duplicate webhook must be idempotent and not resend emails
+	if err := paymentSvc.HandleDuitkuWebhook(ctx, cb); err != nil {
+		t.Fatalf("duplicate HandleDuitkuWebhook failed: %v", err)
+	}
+	if len(mailer.sent) != 2 {
+		t.Fatalf("expected still 2 emails after duplicate webhook, got %d", len(mailer.sent))
+	}
+}
+
+func TestVerifyManualOrder_ApproveDispatchesTicketEmails(t *testing.T) {
+	pool := setupTestDB(t)
+	defer pool.Close()
+
+	ctx := context.Background()
+	identitySvc := identity.NewService(pool, testJWTSecret)
+	organizer := createTestUser(t, pool, "org-manual-mail", "standard")
+	buyer := createTestUser(t, pool, "buyer-manual-mail", "standard")
+	ev := createPublishedEvent(t, pool, identitySvc, organizer.ID, "conference")
+
+	ticketingSvc := ticketing.NewService(pool, identitySvc, testQRHMACSecret)
+	tt, err := ticketingSvc.CreateTicketType(ctx, ev.ID, organizer.ID, ticketing.CreateTicketTypeInput{
+		Name:       "VIP",
+		Price:      250000,
+		Currency:   "IDR",
+		Quota:      10,
+		SalesEndAt: time.Now().Add(24 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("CreateTicketType failed: %v", err)
+	}
+
+	ord, err := ticketingSvc.ReserveOrder(ctx, ticketing.ReserveOrderInput{
+		EventID:       ev.ID,
+		TicketTypeID:  tt.ID,
+		BuyerUserID:   &buyer.ID,
+		BuyerEmail:    buyer.Email,
+		PaymentMethod: "manual_transfer",
+		Attendees: []ticketing.AttendeeInput{
+			{Name: buyer.Name, Email: buyer.Email},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ReserveOrder failed: %v", err)
+	}
+
+	ledgerSvc := ledger.NewService(pool)
+	mailer := &mockPaymentMailer{}
+	paymentSvc := payments.NewService(
+		pool,
+		identitySvc,
+		ledgerSvc,
+		&stubDuitkuClient{},
+		testQRHMACSecret,
+		testDuitkuMerchantCode,
+		testDuitkuAPIKey,
+		"",
+		"",
+	)
+	paymentSvc.SetMailer(mailer)
+
+	if err := paymentSvc.SubmitManualProof(ctx, ord.ID, "https://example.com/proof.jpg"); err != nil {
+		t.Fatalf("SubmitManualProof failed: %v", err)
+	}
+	if err := paymentSvc.VerifyManualOrder(ctx, ord.ID, organizer.ID, true, "verified"); err != nil {
+		t.Fatalf("VerifyManualOrder approve failed: %v", err)
+	}
+	if len(mailer.sent) != 1 {
+		t.Fatalf("expected 1 email dispatched on manual approval, got %d", len(mailer.sent))
+	}
+	if mailer.sent[0].toEmail != buyer.Email {
+		t.Fatalf("expected email to %q, got %q", buyer.Email, mailer.sent[0].toEmail)
+	}
+	if !bytes.HasPrefix(mailer.sent[0].pdfBytes, []byte("%PDF-")) || !bytes.HasPrefix(mailer.sent[0].qrPNG, []byte("\x89PNG")) {
+		t.Fatalf("expected valid PDF and QR PNG attachments")
 	}
 }

@@ -1,6 +1,7 @@
 package ticketing_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -543,5 +544,201 @@ func TestReserveOrder_PaidOrderCreatesPendingTickets(t *testing.T) {
 	}
 	if ord.Tickets[0].QRSignature != "" {
 		t.Fatalf("expected empty qr_signature for pending ticket, got %q", ord.Tickets[0].QRSignature)
+	}
+}
+
+type sentTicketEmail struct {
+	toEmail  string
+	subject  string
+	htmlBody string
+	pdfBytes []byte
+	qrPNG    []byte
+}
+
+type mockMailer struct {
+	mu   sync.Mutex
+	sent []sentTicketEmail
+	err  error
+}
+
+func (m *mockMailer) SendTicketEmail(_ context.Context, toEmail, subject, htmlBody string, pdfBytes, qrPNG []byte) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.err != nil {
+		return m.err
+	}
+	m.sent = append(m.sent, sentTicketEmail{
+		toEmail:  toEmail,
+		subject:  subject,
+		htmlBody: htmlBody,
+		pdfBytes: pdfBytes,
+		qrPNG:    qrPNG,
+	})
+	return nil
+}
+
+func TestReserveOrder_MultiTicketLoggedInBuyerGeneratesClaimTokensForOthers(t *testing.T) {
+	pool := setupTestDB(t)
+	defer pool.Close()
+
+	ctx := context.Background()
+	idSvc := identity.NewService(pool, testJWTSecret)
+	evtSvc := events.NewService(pool, idSvc, nil)
+	tktSvc := ticketing.NewService(pool, idSvc, testQRHMACSecret)
+
+	organizer := createTestUser(t, pool, "org-multi", "standard")
+	buyer := createTestUser(t, pool, "buyer-multi", "standard")
+	companion := createTestUser(t, pool, "companion-multi", "standard")
+
+	evt, err := evtSvc.CreateEvent(ctx, organizer.ID, events.CreateEventInput{
+		Title:     "Multi-Ticket Event",
+		Slug:      "multi-ticket-event-" + uuid.NewString()[:8],
+		EventType: "conference",
+		StartAt:   time.Now().Add(24 * time.Hour),
+		EndAt:     time.Now().Add(28 * time.Hour),
+		Venue:     "Jakarta",
+	})
+	if err != nil {
+		t.Fatalf("CreateEvent failed: %v", err)
+	}
+
+	tt, err := tktSvc.CreateTicketType(ctx, evt.ID, organizer.ID, ticketing.CreateTicketTypeInput{
+		Name:       "Free Multi Pass",
+		Price:      0,
+		Currency:   "IDR",
+		Quota:      10,
+		SalesEndAt: time.Now().Add(23 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("CreateTicketType failed: %v", err)
+	}
+
+	ord, err := tktSvc.ReserveOrder(ctx, ticketing.ReserveOrderInput{
+		EventID:       evt.ID,
+		TicketTypeID:  tt.ID,
+		BuyerUserID:   &buyer.ID,
+		BuyerEmail:    buyer.Email,
+		PaymentMethod: "free",
+		Attendees: []ticketing.AttendeeInput{
+			{Name: buyer.Name, Email: strings.ToUpper(buyer.Email)},
+			{Name: companion.Name, Email: companion.Email},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ReserveOrder failed: %v", err)
+	}
+	if len(ord.Tickets) != 2 {
+		t.Fatalf("expected 2 tickets, got %d", len(ord.Tickets))
+	}
+
+	buyerTk := ord.Tickets[0]
+	otherTk := ord.Tickets[1]
+
+	if buyerTk.ClaimToken == nil || *buyerTk.ClaimToken == "" {
+		t.Fatalf("expected buyer ticket to have claim_token")
+	}
+	if buyerTk.ClaimedByUserID == nil || *buyerTk.ClaimedByUserID != buyer.ID {
+		t.Fatalf("expected buyer ticket claimed_by_user_id=%s, got %v", buyer.ID, buyerTk.ClaimedByUserID)
+	}
+
+	if otherTk.ClaimToken == nil || *otherTk.ClaimToken == "" {
+		t.Fatalf("expected companion ticket to have claim_token")
+	}
+	if *otherTk.ClaimToken == *buyerTk.ClaimToken {
+		t.Fatalf("expected unique claim tokens per ticket")
+	}
+	if otherTk.ClaimedByUserID != nil {
+		t.Fatalf("expected companion ticket claimed_by_user_id=nil, got %v", *otherTk.ClaimedByUserID)
+	}
+
+	// Companion can claim their ticket via claim_token
+	claimed, err := tktSvc.ClaimTicket(ctx, companion.ID, *otherTk.ClaimToken)
+	if err != nil {
+		t.Fatalf("ClaimTicket for companion failed: %v", err)
+	}
+	if claimed.ClaimedByUserID == nil || *claimed.ClaimedByUserID != companion.ID {
+		t.Fatalf("expected claimed_by_user_id=%s, got %v", companion.ID, claimed.ClaimedByUserID)
+	}
+
+	// Same user claiming again is idempotent
+	reclaimed, err := tktSvc.ClaimTicket(ctx, companion.ID, *otherTk.ClaimToken)
+	if err != nil {
+		t.Fatalf("idempotent ClaimTicket failed: %v", err)
+	}
+	if reclaimed.ID != claimed.ID {
+		t.Fatalf("expected same ticket ID %s, got %s", claimed.ID, reclaimed.ID)
+	}
+
+	// Another user cannot claim an already-claimed ticket
+	if _, err := tktSvc.ClaimTicket(ctx, organizer.ID, *otherTk.ClaimToken); !errors.Is(err, ticketing.ErrAlreadyClaimed) {
+		t.Fatalf("expected ErrAlreadyClaimed, got %v", err)
+	}
+}
+
+func TestReserveOrder_FreeOrderDispatchesTicketEmail(t *testing.T) {
+	pool := setupTestDB(t)
+	defer pool.Close()
+
+	ctx := context.Background()
+	idSvc := identity.NewService(pool, testJWTSecret)
+	evtSvc := events.NewService(pool, idSvc, nil)
+	tktSvc := ticketing.NewService(pool, idSvc, testQRHMACSecret)
+	mailer := &mockMailer{}
+	tktSvc.SetMailer(mailer)
+
+	organizer := createTestUser(t, pool, "org-mail", "standard")
+	evt, err := evtSvc.CreateEvent(ctx, organizer.ID, events.CreateEventInput{
+		Title:     "Free Email Event",
+		Slug:      "free-email-event-" + uuid.NewString()[:8],
+		EventType: "meetup_ted",
+		StartAt:   time.Now().Add(24 * time.Hour),
+		EndAt:     time.Now().Add(26 * time.Hour),
+		Venue:     "Bandung",
+	})
+	if err != nil {
+		t.Fatalf("CreateEvent failed: %v", err)
+	}
+
+	tt, err := tktSvc.CreateTicketType(ctx, evt.ID, organizer.ID, ticketing.CreateTicketTypeInput{
+		Name:       "Free Pass",
+		Price:      0,
+		Currency:   "IDR",
+		Quota:      10,
+		SalesEndAt: time.Now().Add(23 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("CreateTicketType failed: %v", err)
+	}
+
+	ord, err := tktSvc.ReserveOrder(ctx, ticketing.ReserveOrderInput{
+		EventID:       evt.ID,
+		TicketTypeID:  tt.ID,
+		BuyerEmail:    "buyer@example.com",
+		PaymentMethod: "free",
+		Attendees: []ticketing.AttendeeInput{
+			{Name: "Alice", Email: "alice@example.com"},
+			{Name: "Bob", Email: "bob@example.com"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ReserveOrder failed: %v", err)
+	}
+	if len(ord.Tickets) != 2 {
+		t.Fatalf("expected 2 tickets, got %d", len(ord.Tickets))
+	}
+
+	if len(mailer.sent) != 2 {
+		t.Fatalf("expected 2 emails sent, got %d", len(mailer.sent))
+	}
+	for i, email := range mailer.sent {
+		if !bytes.HasPrefix(email.pdfBytes, []byte("%PDF-")) {
+			t.Fatalf("email %d: expected PDF bytes, got %q", i, string(email.pdfBytes[:min(8, len(email.pdfBytes))]))
+		}
+		if !bytes.HasPrefix(email.qrPNG, []byte("\x89PNG")) {
+			t.Fatalf("email %d: expected PNG bytes", i)
+		}
+		if !strings.Contains(email.subject, evt.Title) {
+			t.Fatalf("email %d: expected subject to contain event title %q, got %q", i, evt.Title, email.subject)
+		}
 	}
 }

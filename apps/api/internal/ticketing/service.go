@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"html"
+	"log"
 	"strings"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/cerdas-club/beo/apps/api/internal/identity"
+	"github.com/cerdas-club/beo/apps/api/internal/platform"
 )
 
 var (
@@ -135,6 +138,7 @@ type Service struct {
 	db           *pgxpool.Pool
 	identitySvc  *identity.Service
 	qrHMACSecret string
+	mailer       platform.Mailer
 }
 
 // NewService creates a new ticketing Service.
@@ -147,6 +151,11 @@ func NewService(db *pgxpool.Pool, identitySvc *identity.Service, qrHMACSecret st
 		identitySvc:  identitySvc,
 		qrHMACSecret: qrHMACSecret,
 	}
+}
+
+// SetMailer configures an optional Mailer for transactional ticket email dispatch.
+func (s *Service) SetMailer(mailer platform.Mailer) {
+	s.mailer = mailer
 }
 
 func randomHex(nBytes int) (string, error) {
@@ -409,12 +418,12 @@ func (s *Service) ReserveOrder(ctx context.Context, in ReserveOrderInput) (Order
 
 	ord.Tickets = make([]Ticket, 0, qty)
 	for _, att := range in.Attendees {
-		var claimToken *string
+		tok := uuid.NewString()
+		claimToken := &tok
+
 		var claimedBy *string
-		if in.BuyerUserID == nil || strings.TrimSpace(*in.BuyerUserID) == "" {
-			tok := uuid.NewString()
-			claimToken = &tok
-		} else {
+		if in.BuyerUserID != nil && strings.TrimSpace(*in.BuyerUserID) != "" &&
+			strings.EqualFold(strings.TrimSpace(att.Email), strings.TrimSpace(in.BuyerEmail)) {
 			claimedBy = in.BuyerUserID
 		}
 
@@ -427,6 +436,10 @@ func (s *Service) ReserveOrder(ctx context.Context, in ReserveOrderInput) (Order
 
 	if err := tx.Commit(ctx); err != nil {
 		return Order{}, fmt.Errorf("commit order tx: %w", err)
+	}
+
+	if paymentStatus == "paid" && s.mailer != nil {
+		SendOrderTicketEmails(ctx, s.db, s.mailer, s.qrHMACSecret, ord.ID)
 	}
 
 	return ord, nil
@@ -629,6 +642,9 @@ func (s *Service) ClaimTicket(ctx context.Context, userID, claimToken string) (T
 	}
 
 	if tk.ClaimedByUserID != nil && *tk.ClaimedByUserID != "" {
+		if *tk.ClaimedByUserID == userID {
+			return tk, nil
+		}
 		return Ticket{}, ErrAlreadyClaimed
 	}
 
@@ -785,5 +801,105 @@ func (s *Service) GetTicketPDFBytes(ctx context.Context, ticketCode string) ([]b
 	}
 
 	return GenerateTicketPDF(pdfData, qrPNG)
+}
+
+// SendOrderTicketEmails generates QR PNGs and ticket PDFs for all valid tickets in an order
+// and dispatches transactional emails via mailer. Mailer or rendering errors are logged without
+// failing the already-committed order confirmation.
+func SendOrderTicketEmails(ctx context.Context, db *pgxpool.Pool, mailer platform.Mailer, qrHMACSecret, orderID string) {
+	if mailer == nil || db == nil {
+		return
+	}
+
+	rows, err := db.Query(ctx, `
+		SELECT
+			t.id, t.order_id, t.ticket_type_id, t.event_id, t.agency_id,
+			t.attendee_name, t.attendee_email, t.ticket_code, t.qr_signature,
+			t.claim_token, t.claimed_by_user_id, t.status, t.checked_in_at, t.checked_in_by, t.created_at,
+			e.title, e.event_type, e.venue, e.start_at, e.end_at,
+			tt.name, tt.price::float8, tt.currency
+		FROM tickets t
+		JOIN events e ON e.id = t.event_id
+		JOIN ticket_types tt ON tt.id = t.ticket_type_id
+		WHERE t.order_id = $1 AND t.status = 'valid'
+		ORDER BY t.created_at ASC
+	`, orderID)
+	if err != nil {
+		log.Printf("ticketing: query confirmed tickets for email dispatch (order %s): %v", orderID, err)
+		return
+	}
+	defer rows.Close()
+
+	var details []TicketDetails
+	for rows.Next() {
+		var td TicketDetails
+		if err := rows.Scan(
+			&td.Ticket.ID, &td.Ticket.OrderID, &td.Ticket.TicketTypeID, &td.Ticket.EventID, &td.Ticket.AgencyID,
+			&td.Ticket.AttendeeName, &td.Ticket.AttendeeEmail, &td.Ticket.TicketCode, &td.Ticket.QRSignature,
+			&td.Ticket.ClaimToken, &td.Ticket.ClaimedByUserID, &td.Ticket.Status, &td.Ticket.CheckedInAt, &td.Ticket.CheckedInBy, &td.Ticket.CreatedAt,
+			&td.EventTitle, &td.EventType, &td.Venue, &td.StartAt, &td.EndAt,
+			&td.TicketTypeName, &td.Price, &td.Currency,
+		); err != nil {
+			log.Printf("ticketing: scan confirmed ticket for email dispatch (order %s): %v", orderID, err)
+			return
+		}
+		details = append(details, td)
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("ticketing: iterate confirmed tickets for email dispatch (order %s): %v", orderID, err)
+		return
+	}
+
+	for _, td := range details {
+		payload := td.Ticket.QRSignature
+		if payload == "" {
+			payload = SignQR(qrHMACSecret, td.Ticket.TicketCode, td.Ticket.EventID)
+		}
+
+		qrPNG, err := GenerateQRPNG(payload)
+		if err != nil {
+			log.Printf("ticketing: generate QR PNG for ticket %s: %v", td.Ticket.TicketCode, err)
+			continue
+		}
+
+		pdfData := TicketPDFData{
+			TicketCode:     td.Ticket.TicketCode,
+			EventTitle:     td.EventTitle,
+			EventType:      td.EventType,
+			Venue:          td.Venue,
+			StartAt:        td.StartAt,
+			EndAt:          td.EndAt,
+			AttendeeName:   td.Ticket.AttendeeName,
+			AttendeeEmail:  td.Ticket.AttendeeEmail,
+			TicketTypeName: td.TicketTypeName,
+			Price:          td.Price,
+			Currency:       td.Currency,
+		}
+		pdfBytes, err := GenerateTicketPDF(pdfData, qrPNG)
+		if err != nil {
+			log.Printf("ticketing: generate PDF for ticket %s: %v", td.Ticket.TicketCode, err)
+			continue
+		}
+
+		cleanTitle := strings.NewReplacer("\r", " ", "\n", " ").Replace(td.EventTitle)
+		subject := fmt.Sprintf("Your BEO Ticket: %s (%s)", cleanTitle, td.Ticket.TicketCode)
+		htmlBody := fmt.Sprintf(
+			"<h1>Your Ticket is Confirmed</h1>"+
+				"<p>Hi %s,</p>"+
+				"<p>Your ticket for <strong>%s</strong> (%s) at <strong>%s</strong> on %s is ready.</p>"+
+				"<p>Ticket Code: <strong>%s</strong></p>"+
+				"<p>Your QR code and printable PDF ticket are attached.</p>",
+			html.EscapeString(td.Ticket.AttendeeName),
+			html.EscapeString(td.EventTitle),
+			html.EscapeString(td.TicketTypeName),
+			html.EscapeString(td.Venue),
+			html.EscapeString(td.StartAt.Format("02 Jan 2006 15:04 MST")),
+			html.EscapeString(td.Ticket.TicketCode),
+		)
+
+		if err := mailer.SendTicketEmail(ctx, td.Ticket.AttendeeEmail, subject, htmlBody, pdfBytes, qrPNG); err != nil {
+			log.Printf("ticketing: send ticket email for %s to %s: %v", td.Ticket.TicketCode, td.Ticket.AttendeeEmail, err)
+		}
+	}
 }
 

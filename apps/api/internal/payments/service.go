@@ -15,6 +15,7 @@ import (
 
 	"github.com/cerdas-club/beo/apps/api/internal/identity"
 	"github.com/cerdas-club/beo/apps/api/internal/ledger"
+	"github.com/cerdas-club/beo/apps/api/internal/platform"
 	"github.com/cerdas-club/beo/apps/api/internal/ticketing"
 )
 
@@ -37,6 +38,12 @@ type Service struct {
 	duitkuAPIKey       string
 	callbackURL        string
 	returnURL          string
+	mailer             platform.Mailer
+}
+
+// SetMailer configures an optional Mailer for transactional ticket email dispatch.
+func (s *Service) SetMailer(mailer platform.Mailer) {
+	s.mailer = mailer
 }
 
 // NewService creates a new payments Service.
@@ -192,6 +199,10 @@ func (s *Service) HandleDuitkuWebhook(ctx context.Context, payload DuitkuCallbac
 		return fmt.Errorf("commit duitku webhook tx: %w", err)
 	}
 
+	if s.mailer != nil {
+		ticketing.SendOrderTicketEmails(ctx, s.db, s.mailer, s.qrHMACSecret, payload.MerchantOrderID)
+	}
+
 	return nil
 }
 
@@ -299,6 +310,10 @@ func (s *Service) VerifyManualOrder(ctx context.Context, orderID, actorID string
 
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit verify manual tx: %w", err)
+	}
+
+	if approve && s.mailer != nil {
+		ticketing.SendOrderTicketEmails(ctx, s.db, s.mailer, s.qrHMACSecret, orderID)
 	}
 
 	return nil
