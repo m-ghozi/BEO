@@ -4,6 +4,8 @@ import { AuthProvider, ProtectedRoute } from "./features/auth/AuthContext";
 import { Layout } from "./components/Layout";
 import { LoginPage } from "./features/auth/LoginPage";
 import { RegisterPage } from "./features/auth/RegisterPage";
+import { EventsListPage } from "./features/public-events/EventsListPage";
+import { EventDetailPage } from "./features/public-events/EventDetailPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -14,40 +16,12 @@ const queryClient = new QueryClient({
   },
 });
 
-function HomePlaceholder() {
-  return (
-    <div className="py-12 text-center">
-      <div className="mx-auto max-w-3xl">
-        <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl">
-          BEO — Universal Event Organizer
-        </h1>
-        <p className="mt-4 text-lg text-gray-600">
-          Discover community meetups, hands-on workshops, conferences, and TED-style events.
-        </p>
-        <div className="mt-8 flex justify-center gap-4">
-          <Link
-            to="/register"
-            className="rounded-lg bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
-          >
-            Get Started
-          </Link>
-          <Link
-            to="/login"
-            className="rounded-lg border border-gray-300 bg-white px-5 py-3 text-sm font-semibold text-gray-700 shadow-xs hover:bg-gray-50"
-          >
-            Sign In
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Layout />}>
-        <Route index element={<HomePlaceholder />} />
+        <Route index element={<EventsListPage />} />
+        <Route path="events/:slug" element={<EventDetailPage />} />
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />
 
