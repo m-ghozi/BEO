@@ -101,6 +101,14 @@ cd apps/api && go vet ./... && go test ./...
 
 ---
 
+## Documentation
+
+- [Feature Status](docs/status/feature-status.md) — audit implementasi dan gap per area.
+- [Design Specification](docs/superpowers/specs/2026-11-13-beo-design.md)
+- Implementation plans: [Backend API](docs/superpowers/plans/2026-11-13-beo-backend-api.md), [Web SPA](docs/superpowers/plans/2026-11-13-beo-web-spa.md), [Mobile App](docs/superpowers/plans/2026-11-13-beo-mobile-app.md)
+
+---
+
 ## License
 
 See [LICENSE](LICENSE).
