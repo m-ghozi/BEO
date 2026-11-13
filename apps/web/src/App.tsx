@@ -14,6 +14,7 @@ import { WalletPayoutsPage } from "./features/organizer-studio/WalletPayoutsPage
 import { AgencyPortalPage } from "./features/agency-portal/AgencyPortalPage";
 import { CFPPortalPage } from "./features/cfp-review/CFPPortalPage";
 import { CheckinPage } from "./features/checkin-scanner/CheckinPage";
+import { AdminDashboardPage } from "./features/admin/AdminDashboardPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -79,6 +80,14 @@ export function AppRoutes() {
           element={
             <ProtectedRoute accountType="agency">
               <AgencyPortalPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="admin"
+          element={
+            <ProtectedRoute accountType="platform_admin">
+              <AdminDashboardPage />
             </ProtectedRoute>
           }
         />

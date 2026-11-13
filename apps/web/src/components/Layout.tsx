@@ -49,6 +49,11 @@ export function Layout() {
                       Agency Portal
                     </NavLink>
                   )}
+                  {user?.account_type === "platform_admin" && (
+                    <NavLink to="/admin" className={navLinkClass}>
+                      Admin
+                    </NavLink>
+                  )}
                 </>
               )}
             </nav>
