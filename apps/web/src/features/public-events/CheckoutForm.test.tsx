@@ -309,6 +309,84 @@ describe("CheckoutForm", () => {
     });
   });
 
+  it("handles manual transfer proof file upload via proof-upload endpoint", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    fetchSpy.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: "ord-manual-2",
+          event_id: "evt-uuid-1",
+          buyer_email: "buyer@example.com",
+          total_amount: 150000,
+          payment_method: "manual_transfer",
+          payment_status: "pending",
+          created_at: "2026-11-13T00:00:00Z",
+        }),
+        { status: 201, headers: { "Content-Type": "application/json" } }
+      )
+    );
+
+    render(
+      <AuthProvider>
+        <MemoryRouter>
+          <CheckoutForm
+            event={mockEvent}
+            ticketTypes={[mockPaidTicketType]}
+          />
+        </MemoryRouter>
+      </AuthProvider>
+    );
+
+    fireEvent.change(screen.getByLabelText(/buyer email/i), {
+      target: { value: "buyer@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText(/attendee 1 name/i), {
+      target: { value: "Charlie Brown" },
+    });
+    fireEvent.change(screen.getByLabelText(/attendee 1 email/i), {
+      target: { value: "charlie@example.com" },
+    });
+
+    fireEvent.click(screen.getByLabelText(/manual transfer|bank transfer/i));
+    fireEvent.click(screen.getByRole("button", { name: /reserve tickets|complete registration|checkout/i }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/upload transfer receipt/i)).toBeInTheDocument();
+    });
+
+    fetchSpy.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          status: "pending_verification",
+          proof_file_url: "/v1/uploads/receipt.png",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+
+    const file = new File(["receipt-bytes"], "receipt.png", { type: "image/png" });
+    fireEvent.change(screen.getByLabelText(/upload transfer receipt/i), {
+      target: { files: [file] },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /submit payment proof/i }));
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining("/v1/orders/ord-manual-2/proof-upload"),
+        expect.objectContaining({
+          method: "POST",
+          body: expect.any(FormData),
+        })
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/pending verification/i)).toBeInTheDocument();
+    });
+  });
+
   it("handles free ticket instant confirmation without payment redirects", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 

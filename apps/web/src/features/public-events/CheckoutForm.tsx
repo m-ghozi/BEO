@@ -39,6 +39,7 @@ export function CheckoutForm({ event, ticketTypes, onSuccess }: CheckoutFormProp
   const [confirmedOrder, setConfirmedOrder] = useState<OrderDTO | null>(null);
   const [duitkuPaymentUrl, setDuitkuPaymentUrl] = useState<string | null>(null);
   const [manualOrderId, setManualOrderId] = useState<string | null>(null);
+  const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofUrl, setProofUrl] = useState<string>("");
   const [proofSubmitted, setProofSubmitted] = useState<boolean>(false);
   const [proofSubmitting, setProofSubmitting] = useState<boolean>(false);
@@ -155,20 +156,32 @@ export function CheckoutForm({ event, ticketTypes, onSuccess }: CheckoutFormProp
   const handleProofSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualOrderId) return;
-    if (!proofUrl.trim()) {
-      setError("Please provide a valid proof file URL");
+    if (!proofFile && !proofUrl.trim()) {
+      setError("Please upload a receipt file or provide a valid proof file URL");
       return;
     }
 
     setError(null);
     setProofSubmitting(true);
     try {
-      await apiFetch<{ status: string }>(`/v1/orders/${manualOrderId}/proof`, {
-        method: "POST",
-        body: JSON.stringify({
-          proof_file_url: proofUrl.trim(),
-        }),
-      });
+      if (proofFile) {
+        const formData = new FormData();
+        formData.append("file", proofFile);
+        await apiFetch<{ status: string; proof_file_url?: string }>(
+          `/v1/orders/${manualOrderId}/proof-upload`,
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
+      } else {
+        await apiFetch<{ status: string }>(`/v1/orders/${manualOrderId}/proof`, {
+          method: "POST",
+          body: JSON.stringify({
+            proof_file_url: proofUrl.trim(),
+          }),
+        });
+      }
       setProofSubmitted(true);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to submit payment proof";
@@ -248,20 +261,43 @@ export function CheckoutForm({ event, ticketTypes, onSuccess }: CheckoutFormProp
 
         <form onSubmit={handleProofSubmit} className="space-y-4">
           <div>
+            <label htmlFor="proof-file-upload" className="block text-sm font-medium text-gray-700">
+              Upload Transfer Receipt (Image or PDF)
+            </label>
+            <input
+              id="proof-file-upload"
+              type="file"
+              accept="image/*,.pdf"
+              onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
+              className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
+            />
+            {proofFile && (
+              <p className="mt-1 text-xs text-indigo-600">
+                Selected file: {proofFile.name}
+              </p>
+            )}
+          </div>
+
+          <div className="relative flex items-center py-1">
+            <div className="flex-grow border-t border-gray-200" />
+            <span className="mx-3 flex-shrink text-xs uppercase text-gray-400">or paste URL</span>
+            <div className="flex-grow border-t border-gray-200" />
+          </div>
+
+          <div>
             <label htmlFor="proof-file-url" className="block text-sm font-medium text-gray-700">
               Proof File URL / Transfer Receipt URL
             </label>
             <input
               id="proof-file-url"
               type="url"
-              required
               placeholder="https://example.com/receipt.jpg"
               value={proofUrl}
               onChange={(e) => setProofUrl(e.target.value)}
               className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-xs focus:border-indigo-500 focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
             />
             <p className="mt-1 text-xs text-gray-500">
-              Upload your receipt to cloud storage or an image host and paste the public link here.
+              Alternatively, upload your receipt to cloud storage and paste the public link here.
             </p>
           </div>
 

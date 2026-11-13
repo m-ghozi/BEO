@@ -206,6 +206,22 @@ export const CheckinScanSchema = z.object({
 
 export type CheckinScanInput = z.infer<typeof CheckinScanSchema>;
 
+export const UpdateCommissionSchema = z.object({
+  rate_percent: z
+    .number()
+    .min(0, "Commission rate must be at least 0")
+    .max(100, "Commission rate cannot exceed 100"),
+});
+
+export type UpdateCommissionInput = z.infer<typeof UpdateCommissionSchema>;
+
+export const ProcessPayoutSchema = z.object({
+  action: z.enum(["approve", "complete", "reject"]),
+  note: z.string().trim().optional(),
+});
+
+export type ProcessPayoutInput = z.infer<typeof ProcessPayoutSchema>;
+
 // --- Data Transfer Objects (DTOs) ---
 
 export interface UserDTO {
@@ -349,12 +365,40 @@ export interface CheckinResultDTO {
 
 export interface EventAgencyDTO {
   id: string;
-  event_id: string;
-  agency_user_id: string;
+  event_id?: string;
+  agency_id: string;
+  agency_name: string;
+  agency_email: string;
+  agency_user_id?: string;
   ticket_type_id: string;
-  quota_limit: number;
+  allocated_quota: number;
+  quota_limit?: number;
   issued_count: number;
   status: string;
+  created_at: string;
+}
+
+export interface EventOrderDTO {
+  id: string;
+  event_id: string;
+  buyer_user_id?: string | null;
+  agency_id?: string | null;
+  buyer_email: string;
+  total_amount: number;
+  payment_method: PaymentMethod | string;
+  payment_status: PaymentStatus | string;
+  duitku_reference?: string | null;
+  proof_file_url?: string | null;
+  expires_at?: string | null;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface EventMemberDTO {
+  user_id: string;
+  name: string;
+  email: string;
+  role: string;
   created_at: string;
 }
 
@@ -366,6 +410,43 @@ export interface PayoutRequestDTO {
   bank_account_number: string;
   bank_account_name: string;
   status: string;
+  requested_at?: string | null;
   processed_at?: string | null;
+  created_at: string;
+}
+
+export interface AdminOverviewDTO {
+  total_users: number;
+  total_events: number;
+  paid_orders: number;
+  gross_revenue: number;
+  total_commission: number;
+  pending_payouts: number;
+}
+
+export interface AdminEventDTO extends EventDTO {
+  organizer_name: string;
+  organizer_email: string;
+}
+
+export interface CommissionRateDTO {
+  event_type: EventType | string;
+  rate_percent: number;
+  updated_at: string;
+}
+
+export interface AdminPayoutRequestDTO extends PayoutRequestDTO {
+  organizer_name: string;
+  organizer_email: string;
+}
+
+export interface AuditEventDTO {
+  id: string;
+  event_type: string;
+  user_id?: string | null;
+  event_id?: string | null;
+  ticket_id?: string | null;
+  ip_address?: string;
+  metadata?: Record<string, unknown> | null;
   created_at: string;
 }

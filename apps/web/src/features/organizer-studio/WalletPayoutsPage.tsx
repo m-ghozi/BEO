@@ -25,7 +25,6 @@ export function WalletPayoutsPage() {
   const [bankAccountName, setBankAccountName] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [recentPayouts, setRecentPayouts] = useState<PayoutRequestDTO[]>([]);
 
   const {
     data: wallet,
@@ -34,6 +33,15 @@ export function WalletPayoutsPage() {
   } = useQuery<WalletDTO>({
     queryKey: ["organizer", "wallet"],
     queryFn: () => apiFetch<WalletDTO>("/v1/organizer/wallet"),
+  });
+
+  const {
+    data: payouts = [],
+    isLoading: payoutsLoading,
+    error: payoutsError,
+  } = useQuery<PayoutRequestDTO[]>({
+    queryKey: ["organizer", "payouts"],
+    queryFn: () => apiFetch<PayoutRequestDTO[]>("/v1/organizer/payouts"),
   });
 
   const payoutMutation = useMutation({
@@ -49,7 +57,7 @@ export function WalletPayoutsPage() {
       }),
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ["organizer", "wallet"] });
-      setRecentPayouts((prev) => [created, ...prev]);
+      queryClient.invalidateQueries({ queryKey: ["organizer", "payouts"] });
       setAmountInput("");
       setBankName("");
       setBankAccountNumber("");
@@ -249,14 +257,26 @@ export function WalletPayoutsPage() {
         </form>
       </div>
 
-      {/* Recent Payouts (session) */}
-      {recentPayouts.length > 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-xs">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Submitted Payout Requests
-          </h2>
+      {/* Payout History */}
+      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-xs">
+        <h2 className="text-lg font-semibold text-gray-900">
+          Payout History
+        </h2>
+        {payoutsLoading ? (
+          <p className="mt-4 text-sm text-gray-500">Loading payout history...</p>
+        ) : payoutsError ? (
+          <p role="alert" className="mt-4 text-sm text-red-600">
+            {payoutsError instanceof Error
+              ? payoutsError.message
+              : "Failed to load payout history."}
+          </p>
+        ) : payouts.length === 0 ? (
+          <p className="mt-4 text-sm text-gray-500">
+            No payout requests submitted yet.
+          </p>
+        ) : (
           <ul className="mt-4 divide-y divide-gray-200">
-            {recentPayouts.map((p) => (
+            {payouts.map((p) => (
               <li
                 key={p.id}
                 className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"
@@ -265,7 +285,10 @@ export function WalletPayoutsPage() {
                   <p className="font-medium text-gray-900">
                     {formatIDR(p.amount)} &rarr; {p.bank_name} ({p.bank_account_number})
                   </p>
-                  <p className="text-xs text-gray-500">{p.bank_account_name}</p>
+                  <p className="text-xs text-gray-500">
+                    {p.bank_account_name} &middot;{" "}
+                    {new Date(p.requested_at ?? p.created_at).toLocaleString()}
+                  </p>
                 </div>
                 <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
                   {p.status}
@@ -273,8 +296,8 @@ export function WalletPayoutsPage() {
               </li>
             ))}
           </ul>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

@@ -5,6 +5,8 @@ import {
   RegisterSchema,
   ClaimTicketSchema,
   CFPDecisionInputSchema,
+  UpdateCommissionSchema,
+  ProcessPayoutSchema,
   EventType,
 } from "./index";
 
@@ -176,5 +178,40 @@ describe("CFPDecisionInputSchema", () => {
     expect(
       CFPDecisionInputSchema.safeParse({ decision: "pending" }).success
     ).toBe(false);
+  });
+});
+
+describe("UpdateCommissionSchema", () => {
+  it("accepts rates between 0 and 100 inclusive", () => {
+    expect(UpdateCommissionSchema.safeParse({ rate_percent: 0 }).success).toBe(true);
+    expect(UpdateCommissionSchema.safeParse({ rate_percent: 5.5 }).success).toBe(true);
+    expect(UpdateCommissionSchema.safeParse({ rate_percent: 100 }).success).toBe(true);
+  });
+
+  it("rejects rates below 0 or above 100", () => {
+    expect(UpdateCommissionSchema.safeParse({ rate_percent: -0.1 }).success).toBe(false);
+    expect(UpdateCommissionSchema.safeParse({ rate_percent: 100.1 }).success).toBe(false);
+    expect(UpdateCommissionSchema.safeParse({ rate_percent: "5" }).success).toBe(false);
+  });
+});
+
+describe("ProcessPayoutSchema", () => {
+  it("accepts valid payout actions with optional trimmed note", () => {
+    for (const action of ["approve", "complete", "reject"] as const) {
+      expect(ProcessPayoutSchema.safeParse({ action }).success).toBe(true);
+      const withNote = ProcessPayoutSchema.safeParse({
+        action,
+        note: "  verified transfer  ",
+      });
+      expect(withNote.success).toBe(true);
+      if (withNote.success) {
+        expect(withNote.data.note).toBe("verified transfer");
+      }
+    }
+  });
+
+  it("rejects invalid payout actions", () => {
+    expect(ProcessPayoutSchema.safeParse({ action: "pending" }).success).toBe(false);
+    expect(ProcessPayoutSchema.safeParse({ action: "" }).success).toBe(false);
   });
 });

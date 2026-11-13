@@ -9,11 +9,13 @@ import {
   ManualPaymentVerificationSchema,
   type EventAgencyDTO,
   type EventDTO,
+  type EventMemberDTO,
+  type EventOrderDTO,
   type PostDTO,
   type SessionDTO,
   type TicketTypeDTO,
 } from "@beo/contracts";
-import { apiFetch, ApiError } from "../../lib/api";
+import { API_BASE_URL, apiFetch, ApiError } from "../../lib/api";
 
 type ManageTab =
   | "sessions"
@@ -191,7 +193,16 @@ export function EventManagePage() {
     publishPostMutation.mutate(parsed.data);
   };
 
-  // Ticket Types form state
+  // Ticket Types query & form state
+  const { data: ticketTypes = [], isLoading: ticketTypesLoading } = useQuery<
+    TicketTypeDTO[]
+  >({
+    queryKey: ["event-ticket-types", eventId],
+    queryFn: () =>
+      apiFetch<TicketTypeDTO[]>(`/v1/events/${eventId}/ticket-types`),
+    enabled: Boolean(eventId),
+  });
+
   const [ttName, setTtName] = useState("");
   const [ttPrice, setTtPrice] = useState("0");
   const [ttCurrency, setTtCurrency] = useState("IDR");
@@ -200,9 +211,6 @@ export function EventManagePage() {
   const [ttSalesEnd, setTtSalesEnd] = useState("");
   const [ttError, setTtError] = useState<string | null>(null);
   const [ttSuccess, setTtSuccess] = useState<string | null>(null);
-  const [createdTicketTypes, setCreatedTicketTypes] = useState<TicketTypeDTO[]>(
-    []
-  );
 
   const createTicketTypeMutation = useMutation({
     mutationFn: (payload: {
@@ -218,7 +226,9 @@ export function EventManagePage() {
         body: JSON.stringify(payload),
       }),
     onSuccess: (created) => {
-      setCreatedTicketTypes((prev) => [created, ...prev]);
+      queryClient.invalidateQueries({
+        queryKey: ["event-ticket-types", eventId],
+      });
       setTtName("");
       setTtPrice("0");
       setTtQuota("100");
@@ -270,7 +280,15 @@ export function EventManagePage() {
     });
   };
 
-  // Manual Transfer Verification state
+  // Orders & Manual Transfer Verification state
+  const { data: orders = [], isLoading: ordersLoading } = useQuery<
+    EventOrderDTO[]
+  >({
+    queryKey: ["event-orders", eventId],
+    queryFn: () => apiFetch<EventOrderDTO[]>(`/v1/events/${eventId}/orders`),
+    enabled: Boolean(eventId),
+  });
+
   const [verifyOrderId, setVerifyOrderId] = useState("");
   const [verifyReason, setVerifyReason] = useState("");
   const [verifyError, setVerifyError] = useState<string | null>(null);
@@ -291,6 +309,7 @@ export function EventManagePage() {
         body: JSON.stringify({ approve, reason }),
       }),
     onSuccess: (res, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["event-orders", eventId] });
       setVerifyError(null);
       setVerifySuccess(
         `Order ${vars.orderId} marked as "${res.status}".`
@@ -330,15 +349,20 @@ export function EventManagePage() {
     });
   };
 
-  // Agency Quota Allocation state
+  // Agency Quota Allocation query & state
+  const { data: agencies = [], isLoading: agenciesLoading } = useQuery<
+    EventAgencyDTO[]
+  >({
+    queryKey: ["event-agencies", eventId],
+    queryFn: () => apiFetch<EventAgencyDTO[]>(`/v1/events/${eventId}/agencies`),
+    enabled: Boolean(eventId),
+  });
+
   const [agencyUserId, setAgencyUserId] = useState("");
   const [agencyTicketTypeId, setAgencyTicketTypeId] = useState("");
   const [agencyQuotaLimit, setAgencyQuotaLimit] = useState("10");
   const [agencyError, setAgencyError] = useState<string | null>(null);
   const [agencySuccess, setAgencySuccess] = useState<string | null>(null);
-  const [allocatedAgencies, setAllocatedAgencies] = useState<EventAgencyDTO[]>(
-    []
-  );
 
   const allocateAgencyMutation = useMutation({
     mutationFn: (payload: {
@@ -346,12 +370,17 @@ export function EventManagePage() {
       ticket_type_id: string;
       quota_limit: number;
     }) =>
-      apiFetch<EventAgencyDTO>(`/v1/events/${eventId}/agencies`, {
+      apiFetch<{
+        id: string;
+        agency_user_id: string;
+        ticket_type_id: string;
+        quota_limit: number;
+      }>(`/v1/events/${eventId}/agencies`, {
         method: "POST",
         body: JSON.stringify(payload),
       }),
     onSuccess: (created) => {
-      setAllocatedAgencies((prev) => [created, ...prev]);
+      queryClient.invalidateQueries({ queryKey: ["event-agencies", eventId] });
       setAgencyUserId("");
       setAgencyTicketTypeId("");
       setAgencyQuotaLimit("10");
@@ -383,14 +412,19 @@ export function EventManagePage() {
     allocateAgencyMutation.mutate(parsed.data);
   };
 
-  // Team Member Assignment state
+  // Team Member Assignment query & state
+  const { data: members = [], isLoading: membersLoading } = useQuery<
+    EventMemberDTO[]
+  >({
+    queryKey: ["event-members", eventId],
+    queryFn: () => apiFetch<EventMemberDTO[]>(`/v1/events/${eventId}/members`),
+    enabled: Boolean(eventId),
+  });
+
   const [memberEmail, setMemberEmail] = useState("");
   const [memberRole, setMemberRole] = useState<TeamRole>("co_organizer");
   const [memberError, setMemberError] = useState<string | null>(null);
   const [memberSuccess, setMemberSuccess] = useState<string | null>(null);
-  const [assignedMembers, setAssignedMembers] = useState<
-    { email: string; role: TeamRole }[]
-  >([]);
 
   const assignMemberMutation = useMutation({
     mutationFn: (payload: { email: string; role: TeamRole }) =>
@@ -399,7 +433,7 @@ export function EventManagePage() {
         body: JSON.stringify(payload),
       }),
     onSuccess: (_res, vars) => {
-      setAssignedMembers((prev) => [vars, ...prev]);
+      queryClient.invalidateQueries({ queryKey: ["event-members", eventId] });
       setMemberEmail("");
       setMemberError(null);
       setMemberSuccess(`Assigned ${vars.email} as ${vars.role}.`);
@@ -909,16 +943,20 @@ export function EventManagePage() {
 
           <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-xs">
             <h2 className="text-lg font-semibold text-gray-900">
-              Created Ticket Types (This Session)
+              Ticket Types
             </h2>
-            {createdTicketTypes.length === 0 ? (
+            {ticketTypesLoading ? (
               <p className="mt-4 text-sm text-gray-500">
-                Ticket types you create here will appear with their IDs for
-                agency quota allocation.
+                Loading ticket types...
+              </p>
+            ) : ticketTypes.length === 0 ? (
+              <p className="mt-4 text-sm text-gray-500">
+                No ticket types created yet. Ticket types you create here will
+                appear with their IDs for agency quota allocation.
               </p>
             ) : (
               <ul className="mt-4 divide-y divide-gray-200">
-                {createdTicketTypes.map((tt) => (
+                {ticketTypes.map((tt) => (
                   <li key={tt.id} className="py-3 text-sm">
                     <div className="flex items-center justify-between">
                       <span className="font-medium text-gray-900">
@@ -933,6 +971,9 @@ export function EventManagePage() {
                     <p className="mt-1 text-xs text-gray-500">
                       ID: <code className="font-mono">{tt.id}</code> &middot;
                       Quota: {tt.quota}
+                      {typeof tt.sold_count === "number"
+                        ? ` · Sold: ${tt.sold_count}`
+                        : ""}
                     </p>
                   </li>
                 ))}
@@ -944,90 +985,203 @@ export function EventManagePage() {
 
       {/* Tab 4: Manual Transfer Verification */}
       {activeTab === "verification" && (
-        <div className="max-w-xl rounded-xl border border-gray-200 bg-white p-6 shadow-xs">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Verify Manual Bank Transfer
-          </h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Approve or reject a pending manual transfer order. A reason is
-            required when rejecting.
-          </p>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-xs">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Verify Manual Bank Transfer
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Approve or reject a pending manual transfer order. A reason is
+              required when rejecting.
+            </p>
 
-          {(verifyError || verifyMutation.error) && (
-            <div
-              role="alert"
-              className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-            >
-              {verifyError ??
-                getErrorMessage(
-                  verifyMutation.error,
-                  "Verification request failed"
-                )}
-            </div>
-          )}
-
-          {verifySuccess && (
-            <div
-              role="status"
-              className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
-            >
-              {verifySuccess}
-            </div>
-          )}
-
-          <div className="mt-4 space-y-4">
-            <div>
-              <label
-                htmlFor="verify-order-id"
-                className="block text-sm font-medium text-gray-700"
+            {(verifyError || verifyMutation.error) && (
+              <div
+                role="alert"
+                className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
               >
-                Order ID
-              </label>
-              <input
-                id="verify-order-id"
-                type="text"
-                value={verifyOrderId}
-                onChange={(e) => setVerifyOrderId(e.target.value)}
-                placeholder="e.g. ord-..."
-                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              />
-            </div>
+                {verifyError ??
+                  getErrorMessage(
+                    verifyMutation.error,
+                    "Verification request failed"
+                  )}
+              </div>
+            )}
 
-            <div>
-              <label
-                htmlFor="verify-reason"
-                className="block text-sm font-medium text-gray-700"
+            {verifySuccess && (
+              <div
+                role="status"
+                className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
               >
-                Notes / Rejection Reason
-              </label>
-              <textarea
-                id="verify-reason"
-                rows={3}
-                value={verifyReason}
-                onChange={(e) => setVerifyReason(e.target.value)}
-                placeholder="Required when rejecting (e.g. Proof amount does not match)"
-                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              />
-            </div>
+                {verifySuccess}
+              </div>
+            )}
 
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                disabled={verifyMutation.isPending}
-                onClick={() => handleVerifyOrder(true)}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-              >
-                Approve Payment
-              </button>
-              <button
-                type="button"
-                disabled={verifyMutation.isPending}
-                onClick={() => handleVerifyOrder(false)}
-                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-50"
-              >
-                Reject Payment
-              </button>
+            <div className="mt-4 space-y-4">
+              <div>
+                <label
+                  htmlFor="verify-order-id"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Order ID
+                </label>
+                <input
+                  id="verify-order-id"
+                  type="text"
+                  value={verifyOrderId}
+                  onChange={(e) => setVerifyOrderId(e.target.value)}
+                  placeholder="e.g. ord-..."
+                  className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="verify-reason"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Notes / Rejection Reason
+                </label>
+                <textarea
+                  id="verify-reason"
+                  rows={3}
+                  value={verifyReason}
+                  onChange={(e) => setVerifyReason(e.target.value)}
+                  placeholder="Required when rejecting (e.g. Proof amount does not match)"
+                  className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  disabled={verifyMutation.isPending}
+                  onClick={() => handleVerifyOrder(true)}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                >
+                  Approve Payment
+                </button>
+                <button
+                  type="button"
+                  disabled={verifyMutation.isPending}
+                  onClick={() => handleVerifyOrder(false)}
+                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-50"
+                >
+                  Reject Payment
+                </button>
+              </div>
             </div>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-xs">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Pending Verification &amp; Orders
+            </h2>
+            {ordersLoading ? (
+              <p className="mt-4 text-sm text-gray-500">Loading orders...</p>
+            ) : orders.length === 0 ? (
+              <p className="mt-4 text-sm text-gray-500">
+                No orders placed for this event yet.
+              </p>
+            ) : (
+              <ul className="mt-4 divide-y divide-gray-200 text-sm">
+                {orders.map((ord) => {
+                  const isPendingVerification =
+                    ord.payment_status === "pending_verification";
+                  const proofHref = ord.proof_file_url
+                    ? ord.proof_file_url.startsWith("/v1/uploads/")
+                      ? `${API_BASE_URL.replace(/\/+$/, "")}${ord.proof_file_url}`
+                      : ord.proof_file_url
+                    : null;
+
+                  return (
+                    <li key={ord.id} className="py-3 space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            {ord.buyer_email}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            ID: <code className="font-mono">{ord.id}</code>{" "}
+                            &middot; {ord.payment_method} &middot; IDR{" "}
+                            {ord.total_amount.toLocaleString("id-ID")}
+                          </p>
+                        </div>
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                            ord.payment_status === "paid"
+                              ? "bg-emerald-50 text-emerald-700"
+                              : ord.payment_status === "pending_verification"
+                                ? "bg-amber-50 text-amber-700"
+                                : ord.payment_status === "rejected"
+                                  ? "bg-red-50 text-red-700"
+                                  : "bg-gray-100 text-gray-700"
+                          }`}
+                        >
+                          {ord.payment_status}
+                        </span>
+                      </div>
+
+                      {isPendingVerification && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                          {proofHref ? (
+                            <a
+                              href={proofHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-medium text-indigo-600 underline hover:text-indigo-500"
+                            >
+                              View Payment Proof &rarr;
+                            </a>
+                          ) : (
+                            <span className="text-xs text-gray-400">
+                              No proof URL attached
+                            </span>
+                          )}
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              disabled={verifyMutation.isPending}
+                              onClick={() =>
+                                verifyMutation.mutate({
+                                  orderId: ord.id,
+                                  approve: true,
+                                  reason: "",
+                                })
+                              }
+                              className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              type="button"
+                              disabled={verifyMutation.isPending}
+                              onClick={() => {
+                                setVerifyOrderId(ord.id);
+                                if (verifyReason.trim()) {
+                                  verifyMutation.mutate({
+                                    orderId: ord.id,
+                                    approve: false,
+                                    reason: verifyReason.trim(),
+                                  });
+                                } else {
+                                  setVerifyError(
+                                    "Please enter a rejection reason before rejecting."
+                                  );
+                                }
+                              }}
+                              className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-50"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         </div>
       )}
@@ -1127,22 +1281,35 @@ export function EventManagePage() {
 
           <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-xs">
             <h2 className="text-lg font-semibold text-gray-900">
-              Allocated Quotas (This Session)
+              Allocated Agency Quotas
             </h2>
-            {allocatedAgencies.length === 0 ? (
+            {agenciesLoading ? (
               <p className="mt-4 text-sm text-gray-500">
-                No agency quotas allocated in this session yet.
+                Loading agency quotas...
+              </p>
+            ) : agencies.length === 0 ? (
+              <p className="mt-4 text-sm text-gray-500">
+                No agency quotas allocated yet.
               </p>
             ) : (
               <ul className="mt-4 divide-y divide-gray-200 text-sm">
-                {allocatedAgencies.map((ag) => (
+                {agencies.map((ag) => (
                   <li key={ag.id} className="py-3">
-                    <p className="font-medium text-gray-900">
-                      Agency: {ag.agency_user_id}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      Ticket Type: {ag.ticket_type_id} &middot; Limit:{" "}
-                      {ag.quota_limit} &middot; Issued: {ag.issued_count}
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium text-gray-900">
+                        {ag.agency_name || ag.agency_id}
+                      </p>
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+                        {ag.status}
+                      </span>
+                    </div>
+                    {ag.agency_email && (
+                      <p className="text-xs text-gray-500">{ag.agency_email}</p>
+                    )}
+                    <p className="mt-1 text-xs text-gray-500">
+                      Ticket Type: <code className="font-mono">{ag.ticket_type_id}</code>{" "}
+                      &middot; Allocated: {ag.allocated_quota} &middot; Issued:{" "}
+                      {ag.issued_count}
                     </p>
                   </li>
                 ))}
@@ -1233,20 +1400,27 @@ export function EventManagePage() {
 
           <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-xs">
             <h2 className="text-lg font-semibold text-gray-900">
-              Assigned Members (This Session)
+              Team Members
             </h2>
-            {assignedMembers.length === 0 ? (
+            {membersLoading ? (
               <p className="mt-4 text-sm text-gray-500">
-                No team members assigned in this session yet.
+                Loading team members...
+              </p>
+            ) : members.length === 0 ? (
+              <p className="mt-4 text-sm text-gray-500">
+                No team members assigned yet.
               </p>
             ) : (
               <ul className="mt-4 divide-y divide-gray-200 text-sm">
-                {assignedMembers.map((m, idx) => (
+                {members.map((m) => (
                   <li
-                    key={`${m.email}-${idx}`}
+                    key={m.user_id}
                     className="flex items-center justify-between py-3"
                   >
-                    <span className="font-medium text-gray-900">{m.email}</span>
+                    <div>
+                      <p className="font-medium text-gray-900">{m.name}</p>
+                      <p className="text-xs text-gray-500">{m.email}</p>
+                    </div>
                     <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
                       {m.role}
                     </span>

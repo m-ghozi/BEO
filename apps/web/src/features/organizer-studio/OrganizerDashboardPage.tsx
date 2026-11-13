@@ -9,7 +9,6 @@ import {
   type EventType,
 } from "@beo/contracts";
 import { apiFetch, ApiError } from "../../lib/api";
-import { useAuth } from "../auth/AuthContext";
 
 const EVENT_TYPE_LABELS: Record<EventType, string> = {
   community: "Community Meetup",
@@ -41,7 +40,6 @@ function formatDate(dateStr: string): string {
 }
 
 export function OrganizerDashboardPage() {
-  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -57,17 +55,13 @@ export function OrganizerDashboardPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const {
-    data: allEvents = [],
+    data: myEvents = [],
     isLoading,
     error,
   } = useQuery<EventDTO[]>({
-    queryKey: ["events"],
-    queryFn: () => apiFetch<EventDTO[]>("/v1/events"),
+    queryKey: ["organizer", "events"],
+    queryFn: () => apiFetch<EventDTO[]>("/v1/organizer/events"),
   });
-
-  const myEvents = user
-    ? allEvents.filter((ev) => ev.organizer_id === user.id)
-    : allEvents;
 
   const createMutation = useMutation({
     mutationFn: (payload: {
@@ -84,6 +78,7 @@ export function OrganizerDashboardPage() {
         body: JSON.stringify(payload),
       }),
     onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: ["organizer", "events"] });
       queryClient.invalidateQueries({ queryKey: ["events"] });
       setTitle("");
       setSlug("");
@@ -290,9 +285,7 @@ export function OrganizerDashboardPage() {
                 className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-2xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               >
                 <option value="published">Published</option>
-                <option value="draft" disabled>
-                  Draft (Coming soon)
-                </option>
+                <option value="draft">Draft</option>
               </select>
             </div>
 
