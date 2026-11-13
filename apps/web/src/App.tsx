@@ -8,6 +8,9 @@ import { EventsListPage } from "./features/public-events/EventsListPage";
 import { EventDetailPage } from "./features/public-events/EventDetailPage";
 import { MyTicketsPage } from "./features/tickets/MyTicketsPage";
 import { ClaimTicketPage } from "./features/tickets/ClaimTicketPage";
+import { OrganizerDashboardPage } from "./features/organizer-studio/OrganizerDashboardPage";
+import { EventManagePage } from "./features/organizer-studio/EventManagePage";
+import { WalletPayoutsPage } from "./features/organizer-studio/WalletPayoutsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -45,13 +48,26 @@ export function AppRoutes() {
           }
         />
         <Route
-          path="organizer/*"
+          path="organizer"
           element={
             <ProtectedRoute>
-              <div className="p-8 text-center text-gray-600">
-                <h2 className="text-2xl font-bold">Organizer Studio</h2>
-                <p className="mt-2">Manage events, sessions, tickets, and payouts</p>
-              </div>
+              <OrganizerDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="organizer/events/:eventId"
+          element={
+            <ProtectedRoute>
+              <EventManagePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="organizer/wallet"
+          element={
+            <ProtectedRoute>
+              <WalletPayoutsPage />
             </ProtectedRoute>
           }
         />
