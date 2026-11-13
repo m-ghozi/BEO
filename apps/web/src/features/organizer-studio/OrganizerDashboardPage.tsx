@@ -290,7 +290,9 @@ export function OrganizerDashboardPage() {
                 className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-2xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               >
                 <option value="published">Published</option>
-                <option value="draft">Draft</option>
+                <option value="draft" disabled>
+                  Draft (Coming soon)
+                </option>
               </select>
             </div>
 

@@ -194,7 +194,7 @@ export const CFPReviewInputSchema = z.object({
 export type CFPReviewInput = z.infer<typeof CFPReviewInputSchema>;
 
 export const CFPDecisionInputSchema = z.object({
-  status: z.enum(["accepted", "rejected", "revision_required"]),
+  decision: z.enum(["accepted", "rejected", "revision_required"]),
 });
 
 export type CFPDecisionInput = z.infer<typeof CFPDecisionInputSchema>;

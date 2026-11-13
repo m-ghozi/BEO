@@ -4,6 +4,7 @@ import {
   ReserveOrderSchema,
   RegisterSchema,
   ClaimTicketSchema,
+  CFPDecisionInputSchema,
   EventType,
 } from "./index";
 
@@ -156,5 +157,24 @@ describe("RegisterSchema & ClaimTicketSchema", () => {
       claim_token: "",
     });
     expect(invalid.success).toBe(false);
+  });
+});
+
+describe("CFPDecisionInputSchema", () => {
+  it("accepts valid decision values and rejects status field", () => {
+    for (const decision of [
+      "accepted",
+      "rejected",
+      "revision_required",
+    ] as const) {
+      expect(CFPDecisionInputSchema.safeParse({ decision }).success).toBe(true);
+    }
+
+    expect(
+      CFPDecisionInputSchema.safeParse({ status: "accepted" }).success
+    ).toBe(false);
+    expect(
+      CFPDecisionInputSchema.safeParse({ decision: "pending" }).success
+    ).toBe(false);
   });
 });
