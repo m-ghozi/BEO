@@ -145,6 +145,14 @@ export function EventDetailPage() {
               Completed
             </span>
           )}
+          {event.event_type === "conference" && (
+            <Link
+              to={`/events/${event.id}/cfp`}
+              className="inline-flex items-center gap-1.5 rounded-full border border-purple-200 bg-purple-50 px-3 py-1 text-xs font-semibold text-purple-700 hover:bg-purple-100"
+            >
+              Call for Papers (CFP Portal) &rarr;
+            </Link>
+          )}
         </div>
 
         <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-gray-900 sm:text-4xl">

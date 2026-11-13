@@ -11,6 +11,8 @@ import { ClaimTicketPage } from "./features/tickets/ClaimTicketPage";
 import { OrganizerDashboardPage } from "./features/organizer-studio/OrganizerDashboardPage";
 import { EventManagePage } from "./features/organizer-studio/EventManagePage";
 import { WalletPayoutsPage } from "./features/organizer-studio/WalletPayoutsPage";
+import { AgencyPortalPage } from "./features/agency-portal/AgencyPortalPage";
+import { CFPPortalPage } from "./features/cfp-review/CFPPortalPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -75,10 +77,15 @@ export function AppRoutes() {
           path="agency"
           element={
             <ProtectedRoute accountType="agency">
-              <div className="p-8 text-center text-gray-600">
-                <h2 className="text-2xl font-bold">Agency Portal</h2>
-                <p className="mt-2">Bulk ticket issuance and claim tokens</p>
-              </div>
+              <AgencyPortalPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="events/:eventId/cfp"
+          element={
+            <ProtectedRoute>
+              <CFPPortalPage />
             </ProtectedRoute>
           }
         />
