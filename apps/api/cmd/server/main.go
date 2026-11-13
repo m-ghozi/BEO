@@ -12,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/cerdas-club/beo/apps/api/internal/admin"
 	"github.com/cerdas-club/beo/apps/api/internal/cfp"
 	"github.com/cerdas-club/beo/apps/api/internal/checkin"
 	"github.com/cerdas-club/beo/apps/api/internal/events"
@@ -120,6 +121,7 @@ func main() {
 	auditLogger := fraud.NewAuditLogger(pool, fraud.NoopVectorStore{})
 	checkinSvc := checkin.NewService(pool, identitySvc, auditLogger, cfg.QRHMACSecret)
 	cfpSvc := cfp.NewService(pool, identitySvc)
+	adminSvc := admin.NewService(pool)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -134,6 +136,7 @@ func main() {
 	payments.NewHandler(paymentsSvc, ledgerSvc, cfg.JWTSecret, cfg.StorageDir).RegisterRoutes(mux)
 	checkin.NewHandler(checkinSvc, cfg.JWTSecret).RegisterRoutes(mux)
 	cfp.NewHandler(cfpSvc, cfg.JWTSecret).RegisterRoutes(mux)
+	admin.NewHandler(adminSvc, cfg.JWTSecret).RegisterRoutes(mux)
 
 	startOrderExpiryWorker(ctx, pool)
 
