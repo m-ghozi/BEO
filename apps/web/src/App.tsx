@@ -13,6 +13,7 @@ import { EventManagePage } from "./features/organizer-studio/EventManagePage";
 import { WalletPayoutsPage } from "./features/organizer-studio/WalletPayoutsPage";
 import { AgencyPortalPage } from "./features/agency-portal/AgencyPortalPage";
 import { CFPPortalPage } from "./features/cfp-review/CFPPortalPage";
+import { CheckinPage } from "./features/checkin-scanner/CheckinPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -93,10 +94,7 @@ export function AppRoutes() {
           path="events/:eventId/checkin"
           element={
             <ProtectedRoute>
-              <div className="p-8 text-center text-gray-600">
-                <h2 className="text-2xl font-bold">Venue Check-in Terminal</h2>
-                <p className="mt-2">Hardware HID and camera QR scanner</p>
-              </div>
+              <CheckinPage />
             </ProtectedRoute>
           }
         />
