@@ -46,6 +46,22 @@ jest.mock("expo-device", () => ({
   isDevice: true,
 }));
 
+jest.mock("expo-constants", () => ({
+  __esModule: true,
+  default: {
+    expoConfig: {
+      extra: {
+        eas: {
+          projectId: "test-eas-project-id",
+        },
+      },
+    },
+    easConfig: {
+      projectId: "test-eas-project-id",
+    },
+  },
+}));
+
 jest.mock("expo-router", () => ({
   useRouter: jest.fn(() => ({
     push: jest.fn(),
