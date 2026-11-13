@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "BEO",
+    "slug": "beo",
+    "version": "1.0.0",
+    "scheme": "beo",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "club.cerdas.beo"
+    },
+    "android": {
+      "package": "club.cerdas.beo"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-notifications"
+    ]
+  }
+}

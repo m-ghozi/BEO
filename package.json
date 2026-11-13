@@ -1,0 +1,14 @@
+{
+  "name": "beo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/contracts",
+    "apps/web",
+    "apps/mobile"
+  ],
+  "scripts": {
+    "test": "npm test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present"
+  }
+}
