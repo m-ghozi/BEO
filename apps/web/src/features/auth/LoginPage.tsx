@@ -13,8 +13,12 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const from =
-    (location.state as { from?: { pathname?: string } })?.from?.pathname || "/";
+  const fromLocation = (
+    location.state as { from?: { pathname?: string; search?: string } }
+  )?.from;
+  const from = fromLocation
+    ? `${fromLocation.pathname || "/"}${fromLocation.search || ""}`
+    : "/";
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();

@@ -6,6 +6,8 @@ import { LoginPage } from "./features/auth/LoginPage";
 import { RegisterPage } from "./features/auth/RegisterPage";
 import { EventsListPage } from "./features/public-events/EventsListPage";
 import { EventDetailPage } from "./features/public-events/EventDetailPage";
+import { MyTicketsPage } from "./features/tickets/MyTicketsPage";
+import { ClaimTicketPage } from "./features/tickets/ClaimTicketPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,15 +27,20 @@ export function AppRoutes() {
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />
 
-        {/* Protected Routes placeholder for future tasks */}
+        {/* Protected Routes */}
         <Route
           path="my-tickets"
           element={
             <ProtectedRoute>
-              <div className="p-8 text-center text-gray-600">
-                <h2 className="text-2xl font-bold">My Tickets</h2>
-                <p className="mt-2">Attendee ticket wallet &amp; downloads</p>
-              </div>
+              <MyTicketsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="claim"
+          element={
+            <ProtectedRoute>
+              <ClaimTicketPage />
             </ProtectedRoute>
           }
         />

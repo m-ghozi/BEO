@@ -38,6 +38,9 @@ export function Layout() {
                   <NavLink to="/my-tickets" className={navLinkClass}>
                     My Tickets
                   </NavLink>
+                  <NavLink to="/claim" className={navLinkClass}>
+                    Claim Ticket
+                  </NavLink>
                   <NavLink to="/organizer" className={navLinkClass}>
                     Organizer Studio
                   </NavLink>
