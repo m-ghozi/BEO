@@ -283,3 +283,64 @@ func (s *Service) HasEventRole(ctx context.Context, eventID, userID string, role
 
 	return hasRole, nil
 }
+
+// EventMember represents a member assigned to an event joined with their user profile.
+type EventMember struct {
+	UserID    string    `json:"user_id"`
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// ListEventMembers returns all members assigned to an event.
+// Requires actorID to be the event owner or a co_organizer.
+func (s *Service) ListEventMembers(ctx context.Context, eventID, actorID string) ([]EventMember, error) {
+	eventID = strings.TrimSpace(eventID)
+	actorID = strings.TrimSpace(actorID)
+	if eventID == "" || actorID == "" {
+		return nil, ErrInvalidInput
+	}
+
+	var exists bool
+	if err := s.db.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM events WHERE id = $1)", eventID).Scan(&exists); err != nil {
+		return nil, fmt.Errorf("check event exists: %w", err)
+	}
+	if !exists {
+		return nil, ErrEventNotFound
+	}
+
+	hasRole, err := s.HasEventRole(ctx, eventID, actorID, "co_organizer")
+	if err != nil {
+		return nil, err
+	}
+	if !hasRole {
+		return nil, ErrForbidden
+	}
+
+	rows, err := s.db.Query(ctx, `
+		SELECT em.user_id, u.name, u.email, em.role, em.created_at
+		FROM event_members em
+		JOIN users u ON u.id = em.user_id
+		WHERE em.event_id = $1
+		ORDER BY em.created_at ASC
+	`, eventID)
+	if err != nil {
+		return nil, fmt.Errorf("query event members: %w", err)
+	}
+	defer rows.Close()
+
+	members := []EventMember{}
+	for rows.Next() {
+		var m EventMember
+		if err := rows.Scan(&m.UserID, &m.Name, &m.Email, &m.Role, &m.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan event member: %w", err)
+		}
+		members = append(members, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate event members: %w", err)
+	}
+
+	return members, nil
+}

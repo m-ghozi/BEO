@@ -200,3 +200,48 @@ func (s *Service) RequestPayout(ctx context.Context, organizerID string, in Payo
 
 	return pr, nil
 }
+
+// ListPayouts returns all payout requests for an organizer ordered by created_at DESC.
+func (s *Service) ListPayouts(ctx context.Context, organizerID string) ([]PayoutRequest, error) {
+	organizerID = strings.TrimSpace(organizerID)
+	if organizerID == "" {
+		return nil, ErrInvalidInput
+	}
+
+	rows, err := s.db.Query(ctx, `
+		SELECT id, organizer_id, amount::float8, bank_name, bank_account_number, bank_account_name, status, processed_at, created_at
+		FROM payout_requests
+		WHERE organizer_id = $1
+		ORDER BY created_at DESC
+	`, organizerID)
+	if err != nil {
+		return nil, fmt.Errorf("query organizer payouts: %w", err)
+	}
+	defer rows.Close()
+
+	payouts := []PayoutRequest{}
+	for rows.Next() {
+		var pr PayoutRequest
+		var amountFloat float64
+		if err := rows.Scan(
+			&pr.ID,
+			&pr.OrganizerID,
+			&amountFloat,
+			&pr.BankName,
+			&pr.BankAccountNumber,
+			&pr.BankAccountName,
+			&pr.Status,
+			&pr.ProcessedAt,
+			&pr.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan payout request: %w", err)
+		}
+		pr.Amount = int64(math.Round(amountFloat))
+		payouts = append(payouts, pr)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate payout requests: %w", err)
+	}
+
+	return payouts, nil
+}

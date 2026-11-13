@@ -131,7 +131,7 @@ func main() {
 	identity.NewHandler(identitySvc, cfg.JWTSecret).RegisterRoutes(mux)
 	events.NewHandler(eventsSvc, cfg.JWTSecret).RegisterRoutes(mux)
 	ticketing.NewHandler(ticketingSvc, cfg.JWTSecret).RegisterRoutes(mux)
-	payments.NewHandler(paymentsSvc, ledgerSvc, cfg.JWTSecret).RegisterRoutes(mux)
+	payments.NewHandler(paymentsSvc, ledgerSvc, cfg.JWTSecret, cfg.StorageDir).RegisterRoutes(mux)
 	checkin.NewHandler(checkinSvc, cfg.JWTSecret).RegisterRoutes(mux)
 	cfp.NewHandler(cfpSvc, cfg.JWTSecret).RegisterRoutes(mux)
 

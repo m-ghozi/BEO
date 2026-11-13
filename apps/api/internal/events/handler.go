@@ -29,6 +29,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	auth := identity.AuthMiddleware(h.jwtSecret)
 
 	mux.Handle("POST /v1/events", auth(http.HandlerFunc(h.handleCreateEvent)))
+	mux.Handle("GET /v1/organizer/events", auth(http.HandlerFunc(h.handleListOrganizerEvents)))
 	mux.HandleFunc("GET /v1/events", h.handleListEvents)
 	mux.HandleFunc("GET /v1/events/{slug}", h.handleGetEventBySlug)
 	mux.Handle("POST /v1/events/{eventID}/sessions", auth(http.HandlerFunc(h.handleAddSession)))
@@ -103,6 +104,22 @@ func (h *Handler) handleListEvents(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list events")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, evts)
+}
+
+func (h *Handler) handleListOrganizerEvents(w http.ResponseWriter, r *http.Request) {
+	claims, ok := identity.UserFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	evts, err := h.svc.ListOrganizerEvents(r.Context(), claims.UserID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list organizer events")
 		return
 	}
 

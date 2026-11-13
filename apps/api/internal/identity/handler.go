@@ -28,6 +28,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/auth/register", h.handleRegister)
 	mux.HandleFunc("POST /v1/auth/login", h.handleLogin)
 	mux.Handle("POST /v1/me/push-token", auth(http.HandlerFunc(h.handleRegisterPushToken)))
+	mux.Handle("GET /v1/events/{eventID}/members", auth(http.HandlerFunc(h.handleListEventMembers)))
 	mux.Handle("POST /v1/events/{eventID}/members", auth(http.HandlerFunc(h.handleAssignEventMember)))
 }
 
@@ -180,4 +181,35 @@ func (h *Handler) handleAssignEventMember(w http.ResponseWriter, r *http.Request
 	}
 
 	writeJSON(w, http.StatusCreated, statusResponse{Status: "ok"})
+}
+
+func (h *Handler) handleListEventMembers(w http.ResponseWriter, r *http.Request) {
+	claims, ok := UserFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	eventID := strings.TrimSpace(r.PathValue("eventID"))
+	if eventID == "" {
+		writeError(w, http.StatusBadRequest, "eventID is required")
+		return
+	}
+
+	members, err := h.svc.ListEventMembers(r.Context(), eventID, claims.UserID)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrForbidden):
+			writeError(w, http.StatusForbidden, "forbidden: only organizer or co_organizer can list event members")
+		case errors.Is(err, ErrEventNotFound):
+			writeError(w, http.StatusNotFound, "event not found")
+		case errors.Is(err, ErrInvalidInput):
+			writeError(w, http.StatusBadRequest, err.Error())
+		default:
+			writeError(w, http.StatusInternalServerError, "failed to list event members")
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusOK, members)
 }

@@ -32,7 +32,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 
 	mux.HandleFunc("GET /v1/events/{eventID}/ticket-types", h.handleListTicketTypes)
 	mux.Handle("POST /v1/events/{eventID}/ticket-types", auth(http.HandlerFunc(h.handleCreateTicketType)))
+	mux.Handle("GET /v1/events/{eventID}/orders", auth(http.HandlerFunc(h.handleListEventOrders)))
 	mux.HandleFunc("POST /v1/events/{eventID}/orders", h.handleReserveOrder)
+	mux.Handle("GET /v1/events/{eventID}/agencies", auth(http.HandlerFunc(h.handleListEventAgencies)))
 	mux.Handle("POST /v1/events/{eventID}/agencies", auth(http.HandlerFunc(h.handleAllocateAgencyQuota)))
 	mux.Handle("POST /v1/agency/events/{eventID}/issue", auth(http.HandlerFunc(h.handleIssueAgencyTickets)))
 	mux.Handle("POST /v1/tickets/claim", auth(http.HandlerFunc(h.handleClaimTicket)))
@@ -263,4 +265,37 @@ func (h *Handler) handleDownloadTicketPDF(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.pdf\"", ticketCode))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(pdfBytes)
+}
+
+func (h *Handler) handleListEventOrders(w http.ResponseWriter, r *http.Request) {
+	claims, ok := identity.UserFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	eventID := strings.TrimSpace(r.PathValue("eventID"))
+	statusFilter := r.URL.Query().Get("status")
+
+	orders, err := h.svc.ListEventOrders(r.Context(), eventID, claims.UserID, statusFilter)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, orders)
+}
+
+func (h *Handler) handleListEventAgencies(w http.ResponseWriter, r *http.Request) {
+	claims, ok := identity.UserFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	eventID := strings.TrimSpace(r.PathValue("eventID"))
+
+	agencies, err := h.svc.ListEventAgencies(r.Context(), eventID, claims.UserID)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, agencies)
 }

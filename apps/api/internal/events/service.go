@@ -566,6 +566,58 @@ func (s *Service) ListEvents(ctx context.Context, opts ...ListEventsOptions) ([]
 	return evts, nil
 }
 
+// ListOrganizerEvents returns all events owned by or staffed by userID across all statuses, ordered by created_at DESC.
+func (s *Service) ListOrganizerEvents(ctx context.Context, userID string) ([]Event, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return nil, fmt.Errorf("%w: userID is required", ErrInvalidInput)
+	}
+
+	query := `
+		SELECT id, organizer_id, title, slug, event_type, modules_enabled, start_at, end_at, venue, status, created_at
+		FROM events
+		WHERE organizer_id = $1
+		   OR EXISTS (SELECT 1 FROM event_members em WHERE em.event_id = events.id AND em.user_id = $1)
+		ORDER BY created_at DESC
+	`
+	rows, err := s.db.Query(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("query organizer events: %w", err)
+	}
+	defer rows.Close()
+
+	evts := []Event{}
+	for rows.Next() {
+		var evt Event
+		var scannedModules []byte
+		if err := rows.Scan(
+			&evt.ID,
+			&evt.OrganizerID,
+			&evt.Title,
+			&evt.Slug,
+			&evt.EventType,
+			&scannedModules,
+			&evt.StartAt,
+			&evt.EndAt,
+			&evt.Venue,
+			&evt.Status,
+			&evt.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan organizer event: %w", err)
+		}
+		evt.ModulesEnabled = make(map[string]interface{})
+		if len(scannedModules) > 0 {
+			_ = json.Unmarshal(scannedModules, &evt.ModulesEnabled)
+		}
+		evts = append(evts, evt)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate organizer events: %w", err)
+	}
+
+	return evts, nil
+}
+
 // ListSessions returns all sessions for an event ordered chronologically.
 func (s *Service) ListSessions(ctx context.Context, eventID string) ([]Session, error) {
 	query := `

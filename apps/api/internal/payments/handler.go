@@ -3,28 +3,41 @@ package payments
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
+
+	"github.com/google/uuid"
 
 	"github.com/cerdas-club/beo/apps/api/internal/identity"
 	"github.com/cerdas-club/beo/apps/api/internal/ledger"
 )
 
+const maxProofUploadBytes = 5 << 20 // 5MB
+
 type Handler struct {
-	svc       *Service
-	ledgerSvc *ledger.Service
-	jwtSecret string
+	svc        *Service
+	ledgerSvc  *ledger.Service
+	jwtSecret  string
+	storageDir string
 }
 
 // NewHandler creates a new payments HTTP handler.
-func NewHandler(svc *Service, ledgerSvc *ledger.Service, jwtSecret string) *Handler {
+func NewHandler(svc *Service, ledgerSvc *ledger.Service, jwtSecret string, storageDir ...string) *Handler {
 	if strings.TrimSpace(jwtSecret) == "" {
 		panic("payments: jwtSecret cannot be empty")
 	}
+	dir := "./uploads"
+	if len(storageDir) > 0 && strings.TrimSpace(storageDir[0]) != "" {
+		dir = strings.TrimSpace(storageDir[0])
+	}
 	return &Handler{
-		svc:       svc,
-		ledgerSvc: ledgerSvc,
-		jwtSecret: jwtSecret,
+		svc:        svc,
+		ledgerSvc:  ledgerSvc,
+		jwtSecret:  jwtSecret,
+		storageDir: dir,
 	}
 }
 
@@ -35,8 +48,11 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/orders/{orderID}/pay/duitku", h.handleInitiateDuitku)
 	mux.HandleFunc("POST /v1/webhooks/duitku", h.handleDuitkuWebhook)
 	mux.HandleFunc("POST /v1/orders/{orderID}/proof", h.handleSubmitManualProof)
+	mux.HandleFunc("POST /v1/orders/{orderID}/proof-upload", h.handleUploadManualProof)
+	mux.HandleFunc("GET /v1/uploads/{filename}", h.handleServeUpload)
 	mux.Handle("POST /v1/orders/{orderID}/verify", auth(http.HandlerFunc(h.handleVerifyManualOrder)))
 	mux.Handle("GET /v1/organizer/wallet", auth(http.HandlerFunc(h.handleGetWallet)))
+	mux.Handle("GET /v1/organizer/payouts", auth(http.HandlerFunc(h.handleListPayouts)))
 	mux.Handle("POST /v1/organizer/payouts", auth(http.HandlerFunc(h.handleRequestPayout)))
 }
 
@@ -204,4 +220,117 @@ func (h *Handler) handleRequestPayout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, pr)
+}
+
+func (h *Handler) handleListPayouts(w http.ResponseWriter, r *http.Request) {
+	claims, ok := identity.UserFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	payouts, err := h.ledgerSvc.ListPayouts(r.Context(), claims.UserID)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, payouts)
+}
+
+func isAllowedProofExtension(ext string) bool {
+	switch strings.ToLower(ext) {
+	case ".jpg", ".jpeg", ".png", ".webp", ".pdf":
+		return true
+	default:
+		return false
+	}
+}
+
+func (h *Handler) handleUploadManualProof(w http.ResponseWriter, r *http.Request) {
+	orderID := strings.TrimSpace(r.PathValue("orderID"))
+	if orderID == "" {
+		writeError(w, http.StatusBadRequest, "orderID is required")
+		return
+	}
+
+	// Allow 5MB file plus multipart overhead.
+	r.Body = http.MaxBytesReader(w, r.Body, maxProofUploadBytes+64*1024)
+	if err := r.ParseMultipartForm(maxProofUploadBytes); err != nil {
+		writeError(w, http.StatusBadRequest, "file too large or invalid multipart form (max 5MB)")
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "file field is required")
+		return
+	}
+	defer file.Close()
+
+	if header.Size > maxProofUploadBytes {
+		writeError(w, http.StatusBadRequest, "file exceeds 5MB limit")
+		return
+	}
+
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	if !isAllowedProofExtension(ext) {
+		writeError(w, http.StatusBadRequest, "unsupported file type: allowed .jpg, .jpeg, .png, .webp, .pdf")
+		return
+	}
+
+	if err := os.MkdirAll(h.storageDir, 0o755); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to prepare storage directory")
+		return
+	}
+
+	filename := uuid.NewString() + ext
+	dstPath := filepath.Join(h.storageDir, filename)
+
+	dst, err := os.OpenFile(dstPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save uploaded file")
+		return
+	}
+
+	n, copyErr := io.Copy(dst, io.LimitReader(file, maxProofUploadBytes+1))
+	closeErr := dst.Close()
+	if copyErr != nil || closeErr != nil || n > maxProofUploadBytes {
+		_ = os.Remove(dstPath)
+		if n > maxProofUploadBytes {
+			writeError(w, http.StatusBadRequest, "file exceeds 5MB limit")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to write uploaded file")
+		return
+	}
+
+	proofURL := "/v1/uploads/" + filename
+	if err := h.svc.SubmitManualProof(r.Context(), orderID, proofURL); err != nil {
+		_ = os.Remove(dstPath)
+		writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{
+		"status":         "pending_verification",
+		"proof_file_url": proofURL,
+	})
+}
+
+func (h *Handler) handleServeUpload(w http.ResponseWriter, r *http.Request) {
+	rawName := r.PathValue("filename")
+	safeName := filepath.Base(rawName)
+	if safeName == "" || safeName == "." || safeName == ".." || safeName != rawName {
+		writeError(w, http.StatusBadRequest, "invalid filename")
+		return
+	}
+
+	filePath := filepath.Join(h.storageDir, safeName)
+	info, err := os.Stat(filePath)
+	if err != nil || info.IsDir() {
+		writeError(w, http.StatusNotFound, "file not found")
+		return
+	}
+
+	http.ServeFile(w, r, filePath)
 }

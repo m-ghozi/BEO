@@ -940,3 +940,136 @@ func SendOrderTicketEmails(ctx context.Context, db *pgxpool.Pool, mailer platfor
 	}
 }
 
+type EventAgencyDetail struct {
+	ID             string    `json:"id"`
+	AgencyID       string    `json:"agency_id"`
+	AgencyName     string    `json:"agency_name"`
+	AgencyEmail    string    `json:"agency_email"`
+	TicketTypeID   string    `json:"ticket_type_id"`
+	AllocatedQuota int       `json:"allocated_quota"`
+	IssuedCount    int       `json:"issued_count"`
+	Status         string    `json:"status"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+// ListEventOrders returns orders for an event, optionally filtered by payment_status.
+// Requires the actor to be the event organizer or a co_organizer.
+func (s *Service) ListEventOrders(ctx context.Context, eventID, actorID, statusFilter string) ([]Order, error) {
+	eventID = strings.TrimSpace(eventID)
+	actorID = strings.TrimSpace(actorID)
+	statusFilter = strings.TrimSpace(statusFilter)
+	if eventID == "" || actorID == "" {
+		return nil, ErrInvalidInput
+	}
+
+	if statusFilter != "" {
+		switch statusFilter {
+		case "pending", "pending_verification", "paid", "expired", "rejected":
+		default:
+			return nil, ErrInvalidInput
+		}
+	}
+
+	if err := s.requireOrganizerOrCoOrganizer(ctx, eventID, actorID); err != nil {
+		return nil, err
+	}
+
+	query := `
+		SELECT id, event_id, buyer_user_id, agency_id, buyer_email, total_amount::float8,
+		       payment_method, payment_status, duitku_reference, proof_file_url, expires_at, created_at, updated_at
+		FROM orders
+		WHERE event_id = $1
+	`
+	args := []any{eventID}
+	if statusFilter != "" {
+		query += " AND payment_status = $2"
+		args = append(args, statusFilter)
+	}
+	query += " ORDER BY created_at DESC"
+
+	rows, err := s.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query event orders: %w", err)
+	}
+	defer rows.Close()
+
+	orders := []Order{}
+	for rows.Next() {
+		var o Order
+		if err := rows.Scan(
+			&o.ID,
+			&o.EventID,
+			&o.BuyerUserID,
+			&o.AgencyID,
+			&o.BuyerEmail,
+			&o.TotalAmount,
+			&o.PaymentMethod,
+			&o.PaymentStatus,
+			&o.DuitkuReference,
+			&o.ProofFileURL,
+			&o.ExpiresAt,
+			&o.CreatedAt,
+			&o.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan event order: %w", err)
+		}
+		orders = append(orders, o)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate event orders: %w", err)
+	}
+
+	return orders, nil
+}
+
+// ListEventAgencies returns agency quota allocations for an event joined with user details.
+// Requires the actor to be the event organizer or a co_organizer.
+func (s *Service) ListEventAgencies(ctx context.Context, eventID, actorID string) ([]EventAgencyDetail, error) {
+	eventID = strings.TrimSpace(eventID)
+	actorID = strings.TrimSpace(actorID)
+	if eventID == "" || actorID == "" {
+		return nil, ErrInvalidInput
+	}
+
+	if err := s.requireOrganizerOrCoOrganizer(ctx, eventID, actorID); err != nil {
+		return nil, err
+	}
+
+	rows, err := s.db.Query(ctx, `
+		SELECT ea.id, ea.agency_user_id, u.name, u.email, ea.ticket_type_id,
+		       ea.quota_limit, ea.issued_count, ea.status, ea.created_at
+		FROM event_agencies ea
+		JOIN users u ON u.id = ea.agency_user_id
+		WHERE ea.event_id = $1
+		ORDER BY ea.created_at DESC
+	`, eventID)
+	if err != nil {
+		return nil, fmt.Errorf("query event agencies: %w", err)
+	}
+	defer rows.Close()
+
+	agencies := []EventAgencyDetail{}
+	for rows.Next() {
+		var a EventAgencyDetail
+		if err := rows.Scan(
+			&a.ID,
+			&a.AgencyID,
+			&a.AgencyName,
+			&a.AgencyEmail,
+			&a.TicketTypeID,
+			&a.AllocatedQuota,
+			&a.IssuedCount,
+			&a.Status,
+			&a.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan event agency: %w", err)
+		}
+		agencies = append(agencies, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate event agencies: %w", err)
+	}
+
+	return agencies, nil
+}
+
