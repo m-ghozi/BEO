@@ -72,5 +72,36 @@ jest.mock("expo-router", () => ({
   Link: "Link",
   Redirect: "Redirect",
   Stack: "Stack",
-  Tabs: "Tabs",
+  Tabs: Object.assign("Tabs", { Screen: "TabsScreen" }),
 }));
+
+jest.mock("expo-linking", () => ({
+  getInitialURL: jest.fn(async () => null),
+  addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+  parse: jest.fn((url: string) => {
+    try {
+      const queryIndex = url.indexOf("?");
+      const queryParams: Record<string, string> = {};
+      if (queryIndex !== -1) {
+        const params = new URLSearchParams(url.slice(queryIndex + 1));
+        params.forEach((value, key) => {
+          queryParams[key] = value;
+        });
+      }
+      return { queryParams };
+    } catch {
+      return { queryParams: {} };
+    }
+  }),
+}));
+
+jest.mock("react-native-qrcode-svg", () => {
+  const React = require("react");
+  const { View } = require("react-native");
+  return function MockQRCode(props: { value: string; testID?: string; size?: number }) {
+    return React.createElement(View, {
+      testID: props.testID ?? "qr-code",
+      accessibilityLabel: props.value,
+    });
+  };
+});
