@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { CheckCircle2, Ticket, Download, QrCode } from "lucide-react";
 import { ClaimTicketSchema, type TicketDTO } from "@beo/contracts";
 import { apiFetch, API_BASE_URL } from "../../lib/api";
 
@@ -48,55 +49,43 @@ export function ClaimTicketPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-2xl py-8">
       {claimedTicket ? (
-        <div className="rounded-2xl bg-white p-8 shadow-xl ring-1 ring-gray-900/5">
-          <div className="mb-6 flex items-center gap-3 rounded-lg bg-green-50 p-4 text-green-800 ring-1 ring-green-200">
-            <svg
-              className="h-6 w-6 shrink-0 text-green-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth="1.5"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
-              />
-            </svg>
+        <div className="rounded-3xl border border-slate-200/80 bg-white p-8 shadow-sm">
+          <div className="mb-6 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-emerald-900">
+            <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-emerald-600" aria-hidden="true" />
             <div>
-              <h2 className="text-base font-semibold">
+              <h2 className="text-base font-bold">
                 Ticket claimed successfully!
               </h2>
-              <p className="text-sm text-green-700">
+              <p className="mt-0.5 text-sm text-emerald-800">
                 Your ticket has been linked to your account. Present the QR code at
                 the venue check-in desk or download the official PDF.
               </p>
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-gray-200 bg-gray-50/50 p-6">
+          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-50/60 p-6">
             <div className="flex flex-col items-center justify-between gap-6 sm:flex-row sm:items-start">
-              <div className="space-y-3 text-center sm:text-left">
+              <div className="space-y-3.5 text-center sm:text-left">
                 <div>
-                  <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-700/10">
+                  <span className="inline-flex items-center rounded-full bg-indigo-50 px-3 py-0.5 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-700/15">
                     Status: {claimedTicket.status}
                   </span>
                 </div>
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                     Attendee
                   </p>
-                  <p className="text-lg font-bold text-gray-900">
+                  <p className="text-lg font-bold text-slate-950">
                     {claimedTicket.attendee_name}
                   </p>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-slate-600">
                     {claimedTicket.attendee_email}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                     Ticket Code
                   </p>
                   <p className="font-mono text-base font-semibold tracking-wide text-indigo-600">
@@ -105,45 +94,34 @@ export function ClaimTicketPage() {
                 </div>
               </div>
 
-              <div className="flex flex-col items-center rounded-xl border border-gray-200 bg-white p-4 shadow-2xs">
+              <div className="flex flex-col items-center rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs">
                 <img
                   src={`${API_BASE_URL}/v1/tickets/${claimedTicket.ticket_code}/qr.png`}
                   alt={`QR Code for ${claimedTicket.ticket_code}`}
                   className="h-44 w-44 object-contain"
                 />
-                <span className="mt-2 text-xs font-medium text-gray-500">
-                  Scan at entrance
+                <span className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                  <QrCode className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
+                  <span>Scan at entrance</span>
                 </span>
               </div>
             </div>
 
-            <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-gray-200 pt-6">
+            <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-slate-200/80 pt-6">
               <a
                 href={`${API_BASE_URL}/v1/tickets/${claimedTicket.ticket_code}/pdf`}
                 target="_blank"
                 rel="noopener noreferrer"
                 download={`ticket-${claimedTicket.ticket_code}.pdf`}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-indigo-500"
               >
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth="1.5"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"
-                  />
-                </svg>
-                Download PDF
+                <Download className="h-4 w-4" aria-hidden="true" />
+                <span>Download PDF</span>
               </a>
 
               <Link
                 to="/my-tickets"
-                className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-2xs hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-2xs transition-colors hover:bg-slate-50"
               >
                 View My Tickets
               </Link>
@@ -151,7 +129,7 @@ export function ClaimTicketPage() {
               <button
                 type="button"
                 onClick={handleReset}
-                className="ml-auto text-sm font-medium text-indigo-600 hover:text-indigo-500"
+                className="ml-auto text-sm font-semibold text-indigo-600 hover:text-indigo-500"
               >
                 Claim Another Ticket
               </button>
@@ -159,27 +137,15 @@ export function ClaimTicketPage() {
           </div>
         </div>
       ) : (
-        <div className="rounded-2xl bg-white p-8 shadow-xl ring-1 ring-gray-900/5">
+        <div className="rounded-3xl border border-slate-200/80 bg-white p-8 shadow-sm">
           <div className="mb-6 text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
-              <svg
-                className="h-6 w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth="1.5"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 0 1 0 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 0 1 0-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375Z"
-                />
-              </svg>
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 ring-1 ring-inset ring-indigo-600/15">
+              <Ticket className="h-6 w-6" aria-hidden="true" />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+            <h1 className="text-2xl font-extrabold tracking-tight text-slate-950">
               Claim Your Event Ticket
             </h1>
-            <p className="mt-2 text-sm text-gray-600">
+            <p className="mt-2 text-sm text-slate-600">
               Enter your claim token to link your ticket and access your QR
               code and downloadable PDF pass.
             </p>
@@ -188,7 +154,7 @@ export function ClaimTicketPage() {
           {error && (
             <div
               role="alert"
-              className="mb-6 rounded-lg bg-red-50 p-4 text-sm text-red-700 ring-1 ring-red-200"
+              className="mb-6 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700"
             >
               {error}
             </div>
@@ -198,11 +164,11 @@ export function ClaimTicketPage() {
             <div>
               <label
                 htmlFor="claimToken"
-                className="block text-sm font-medium text-gray-700"
+                className="block text-sm font-semibold text-slate-700"
               >
                 Claim Token
               </label>
-              <div className="mt-1">
+              <div className="mt-1.5">
                 <input
                   id="claimToken"
                   name="claimToken"
@@ -211,10 +177,10 @@ export function ClaimTicketPage() {
                   value={claimToken}
                   onChange={(e) => setClaimToken(e.target.value)}
                   placeholder="e.g. clm_abc123"
-                  className="block w-full rounded-lg border border-gray-300 px-3.5 py-2.5 font-mono text-sm text-gray-900 shadow-2xs placeholder:text-gray-400 focus:border-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-600"
+                  className="block w-full rounded-xl border border-slate-300 px-3.5 py-2.5 font-mono text-sm text-slate-900 shadow-2xs placeholder:text-slate-400 focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
                 />
               </div>
-              <p className="mt-1.5 text-xs text-gray-500">
+              <p className="mt-1.5 text-xs text-slate-500">
                 You can find this claim token in your invitation email or issued voucher.
               </p>
             </div>
@@ -222,16 +188,16 @@ export function ClaimTicketPage() {
             <button
               type="submit"
               disabled={loading}
-              className="flex w-full justify-center rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50"
+              className="flex w-full justify-center rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-indigo-500 disabled:opacity-50"
             >
               {loading ? "Claiming ticket..." : "Claim Ticket"}
             </button>
           </form>
 
-          <div className="mt-6 border-t border-gray-100 pt-6 text-center">
+          <div className="mt-6 border-t border-slate-100 pt-6 text-center">
             <Link
               to="/my-tickets"
-              className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
+              className="text-sm font-semibold text-indigo-600 hover:text-indigo-500"
             >
               Already claimed? View your tickets in wallet &rarr;
             </Link>

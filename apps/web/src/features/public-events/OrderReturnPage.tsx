@@ -10,41 +10,39 @@ export function OrderReturnPage() {
   const isSuccess = resultCode === "00";
 
   return (
-    <div className="mx-auto max-w-xl py-12">
+    <div className="mx-auto max-w-xl py-10">
       <div
-        className={`rounded-xl border p-8 text-center shadow-xs ${
+        className={`rounded-3xl border p-8 text-center shadow-sm ${
           isSuccess
-            ? "border-green-200 bg-green-50"
-            : "border-amber-200 bg-amber-50"
+            ? "border-emerald-200 bg-emerald-50/70"
+            : "border-amber-200 bg-amber-50/70"
         }`}
       >
         <div
-          className={`mx-auto flex h-12 w-12 items-center justify-center rounded-full ${
+          className={`mx-auto flex h-14 w-14 items-center justify-center rounded-2xl ${
             isSuccess
-              ? "bg-green-100 text-green-600"
+              ? "bg-emerald-100 text-emerald-600"
               : "bg-amber-100 text-amber-600"
           }`}
         >
           {isSuccess ? (
-            <CheckCircle2 className="h-6 w-6" />
+            <CheckCircle2 className="h-7 w-7" aria-hidden="true" />
           ) : (
-            <AlertTriangle className="h-6 w-6" />
+            <AlertTriangle className="h-7 w-7" aria-hidden="true" />
           )}
         </div>
 
         <h1
-          className={`mt-4 text-2xl font-bold ${
-            isSuccess ? "text-green-900" : "text-amber-900"
+          className={`mt-4 text-2xl font-extrabold tracking-tight ${
+            isSuccess ? "text-emerald-950" : "text-amber-950"
           }`}
         >
-          {isSuccess
-            ? "Payment Successful"
-            : "Payment Pending or Failed"}
+          {isSuccess ? "Payment Successful" : "Payment Pending or Failed"}
         </h1>
 
         <p
-          className={`mt-2 text-sm ${
-            isSuccess ? "text-green-700" : "text-amber-800"
+          className={`mt-2 text-sm leading-relaxed ${
+            isSuccess ? "text-emerald-800" : "text-amber-900"
           }`}
         >
           {isSuccess
@@ -53,29 +51,23 @@ export function OrderReturnPage() {
         </p>
 
         {(merchantOrderId || reference || resultCode) && (
-          <dl className="mt-6 space-y-2 rounded-lg border border-gray-200 bg-white p-4 text-left text-sm">
+          <dl className="mt-6 space-y-2.5 rounded-2xl border border-slate-200/80 bg-white p-4 text-left text-sm shadow-2xs">
             {merchantOrderId && (
               <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">Order ID</dt>
-                <dd className="font-mono font-medium text-gray-900">
-                  {merchantOrderId}
-                </dd>
+                <dt className="text-slate-500">Order ID</dt>
+                <dd className="font-mono font-semibold text-slate-900">{merchantOrderId}</dd>
               </div>
             )}
             {reference && (
               <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">Reference</dt>
-                <dd className="font-mono font-medium text-gray-900">
-                  {reference}
-                </dd>
+                <dt className="text-slate-500">Reference</dt>
+                <dd className="font-mono font-semibold text-slate-900">{reference}</dd>
               </div>
             )}
             {resultCode && (
               <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">Result Code</dt>
-                <dd className="font-mono font-medium text-gray-900">
-                  {resultCode}
-                </dd>
+                <dt className="text-slate-500">Result Code</dt>
+                <dd className="font-mono font-semibold text-slate-900">{resultCode}</dd>
               </div>
             )}
           </dl>
@@ -84,13 +76,13 @@ export function OrderReturnPage() {
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Link
             to="/my-tickets"
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-indigo-500"
+            className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-indigo-500"
           >
             Go to My Tickets
           </Link>
           <Link
             to="/"
-            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-xs hover:bg-gray-50"
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-2xs transition-colors hover:bg-slate-50"
           >
             Back to Events
           </Link>

@@ -325,27 +325,27 @@ export function CFPPortalPage() {
   };
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto">
+    <div className="mx-auto max-w-6xl space-y-8">
       {/* Header */}
-      <div className="border-b border-gray-200 pb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
-            <FileText className="h-6 w-6" />
+      <div className="flex flex-col gap-4 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-600 ring-1 ring-inset ring-violet-600/15">
+            <FileText className="h-6 w-6" aria-hidden="true" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
+            <h1 className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
               Conference CFP Portal
             </h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Event ID: <span className="font-mono text-gray-700">{eventId}</span> | Logged in as:{" "}
-              <span className="font-semibold text-gray-700">{user?.name || user?.email}</span>.
+            <p className="mt-1 text-sm text-slate-600">
+              Event ID: <span className="font-mono text-xs text-slate-800">{eventId}</span> | Logged in as:{" "}
+              <span className="font-semibold text-slate-900">{user?.name || user?.email}</span>.
             </p>
           </div>
         </div>
 
         <Link
           to={`/events/${eventId}`}
-          className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
+          className="text-sm font-semibold text-indigo-600 hover:text-indigo-500"
         >
           &larr; Back to Event
         </Link>
@@ -393,10 +393,10 @@ export function CFPPortalPage() {
       )}
 
       {/* Section 1: Author Submission Form */}
-      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-xs">
-        <div className="flex items-center gap-2 mb-4">
-          <Send className="h-5 w-5 text-indigo-600" />
-          <h2 className="text-lg font-bold text-gray-900">
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs">
+        <div className="mb-5 flex items-center gap-2">
+          <Send className="h-5 w-5 text-indigo-600" aria-hidden="true" />
+          <h2 className="text-lg font-bold text-slate-950">
             Submit Paper or Talk Proposal
           </h2>
         </div>

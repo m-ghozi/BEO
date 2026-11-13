@@ -15,6 +15,7 @@ import {
   XCircle,
   ScanBarcode,
   Keyboard,
+  ArrowLeft,
 } from "lucide-react";
 import { CheckinScanSchema, type CheckinResultDTO } from "@beo/contracts";
 import { apiFetch, ApiError } from "../../lib/api";
@@ -217,21 +218,22 @@ export function CheckinPage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-4xl space-y-8">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs">
         <div>
           <Link
             to={eventId ? `/organizer/events/${eventId}` : "/organizer"}
-            className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-500"
           >
-            &larr; Back to Event Management
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            <span>Back to Event Management</span>
           </Link>
-          <h1 className="mt-1 text-2xl font-bold text-gray-900">
+          <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
             Venue Check-in Terminal
           </h1>
-          <p className="text-sm text-gray-600">
-            Event ID: <span className="font-mono">{eventId}</span>
+          <p className="mt-1 text-sm text-slate-600">
+            Event ID: <span className="font-mono text-xs text-slate-800">{eventId}</span>
             {user ? ` · Operator: ${user.name}` : ""}
           </p>
         </div>
@@ -239,63 +241,73 @@ export function CheckinPage() {
         <button
           type="button"
           onClick={() => setWebcamEnabled((prev) => !prev)}
-          className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors ${
             webcamEnabled
-              ? "bg-gray-900 text-white hover:bg-gray-800"
-              : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+              ? "bg-slate-950 text-white hover:bg-slate-800"
+              : "border border-slate-200 bg-white text-slate-700 shadow-2xs hover:bg-slate-50"
           }`}
         >
           {webcamEnabled ? (
             <>
-              <CameraOff className="h-4 w-4" />
-              Disable Webcam Scanner
+              <CameraOff className="h-4 w-4" aria-hidden="true" />
+              <span>Disable Webcam Scanner</span>
             </>
           ) : (
             <>
-              <Camera className="h-4 w-4" />
-              Enable Webcam Scanner
+              <Camera className="h-4 w-4" aria-hidden="true" />
+              <span>Enable Webcam Scanner</span>
             </>
           )}
         </button>
       </div>
 
-      {/* Live Scan Result Banner */}
+      {/* High-visibility Gate Scan Result Banner */}
       {lastResult && (
         <div
           role={lastResult.status === "success" ? "status" : "alert"}
-          className={`rounded-xl border p-5 shadow-xs ${
+          className={`rounded-2xl border-2 p-6 shadow-sm ${
             lastResult.status === "success"
-              ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+              ? "border-emerald-400 bg-emerald-50 text-emerald-950"
               : lastResult.status === "duplicate"
-                ? "border-amber-300 bg-amber-50 text-amber-900"
-                : "border-red-300 bg-red-50 text-red-900"
+                ? "border-amber-400 bg-amber-50 text-amber-950"
+                : "border-rose-400 bg-rose-50 text-rose-950"
           }`}
         >
-          <div className="flex items-start gap-3">
-            {lastResult.status === "success" ? (
-              <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-emerald-600" />
-            ) : lastResult.status === "duplicate" ? (
-              <AlertTriangle className="mt-0.5 h-6 w-6 shrink-0 text-amber-600" />
-            ) : (
-              <XCircle className="mt-0.5 h-6 w-6 shrink-0 text-red-600" />
-            )}
+          <div className="flex items-start gap-4">
+            <div
+              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
+                lastResult.status === "success"
+                  ? "bg-emerald-100 text-emerald-700"
+                  : lastResult.status === "duplicate"
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-rose-100 text-rose-700"
+              }`}
+            >
+              {lastResult.status === "success" ? (
+                <CheckCircle2 className="h-7 w-7" aria-hidden="true" />
+              ) : lastResult.status === "duplicate" ? (
+                <AlertTriangle className="h-7 w-7" aria-hidden="true" />
+              ) : (
+                <XCircle className="h-7 w-7" aria-hidden="true" />
+              )}
+            </div>
 
             <div className="min-w-0 flex-1">
-              <p className="text-lg font-bold">
+              <p className="text-xl font-extrabold tracking-tight">
                 {lastResult.status === "success"
                   ? "Check-in Successful"
                   : lastResult.status === "duplicate"
                     ? "Duplicate Scan"
                     : "Check-in Failed"}
               </p>
-              <p className="mt-0.5 text-sm font-medium">{lastResult.message}</p>
+              <p className="mt-0.5 text-sm font-semibold">{lastResult.message}</p>
 
               {(lastResult.attendeeName || lastResult.ticketCode) && (
-                <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
                   {lastResult.attendeeName && (
                     <span>
                       Attendee:{" "}
-                      <strong className="font-semibold">
+                      <strong className="font-bold">
                         {lastResult.attendeeName}
                       </strong>
                     </span>
@@ -306,7 +318,7 @@ export function CheckinPage() {
                   {lastResult.ticketCode && (
                     <span>
                       Ticket:{" "}
-                      <code className="rounded bg-white/70 px-1.5 py-0.5 font-mono text-xs font-semibold">
+                      <code className="rounded-lg bg-white/80 px-2 py-0.5 font-mono text-xs font-bold ring-1 ring-black/10">
                         {lastResult.ticketCode}
                       </code>
                     </span>
@@ -321,14 +333,16 @@ export function CheckinPage() {
       {/* Scanner Controls Grid */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Hardware HID Scanner Input */}
-        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-xs">
-          <div className="flex items-center gap-2">
-            <ScanBarcode className="h-5 w-5 text-indigo-600" />
-            <h2 className="text-lg font-semibold text-gray-900">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+              <ScanBarcode className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <h2 className="text-lg font-bold text-slate-950">
               Hardware HID Scanner
             </h2>
           </div>
-          <p className="mt-1 text-sm text-gray-600">
+          <p className="mt-2 text-sm text-slate-600">
             Keep this field focused when using a USB/Bluetooth QR barcode
             scanner. Press Enter to submit manually.
           </p>
@@ -337,7 +351,7 @@ export function CheckinPage() {
             <div>
               <label
                 htmlFor="hid-qr-input"
-                className="block text-sm font-medium text-gray-700"
+                className="block text-sm font-semibold text-slate-700"
               >
                 Hardware HID Scanner Input
               </label>
@@ -351,14 +365,14 @@ export function CheckinPage() {
                 onChange={(e) => setHidValue(e.target.value)}
                 onKeyDown={handleHidKeyDown}
                 placeholder="Scan QR code or paste payload..."
-                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2.5 font-mono text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                className="mt-1.5 block w-full rounded-xl border border-slate-300 px-3.5 py-2.5 font-mono text-sm shadow-2xs focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
               />
             </div>
 
             <button
               type="submit"
               disabled={isSubmitting || !hidValue.trim()}
-              className="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+              className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-indigo-500 disabled:opacity-50"
             >
               {isSubmitting ? "Verifying Ticket..." : "Check In Ticket"}
             </button>
@@ -366,16 +380,18 @@ export function CheckinPage() {
         </div>
 
         {/* Webcam Scanner */}
-        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-xs">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Camera className="h-5 w-5 text-indigo-600" />
-              <h2 className="text-lg font-semibold text-gray-900">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                <Camera className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <h2 className="text-lg font-bold text-slate-950">
                 Webcam QR Scanner
               </h2>
             </div>
             {isCameraActive && decoderMode && (
-              <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
+              <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">
                 {decoderMode === "native"
                   ? "Native BarcodeDetector"
                   : "zxing-wasm Worker"}
@@ -386,14 +402,14 @@ export function CheckinPage() {
           {cameraError && (
             <div
               role="alert"
-              className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+              className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"
             >
               {cameraError}
             </div>
           )}
 
           {webcamEnabled ? (
-            <div className="mt-4 overflow-hidden rounded-lg border border-gray-200 bg-black">
+            <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-black">
               <video
                 ref={videoRef}
                 playsInline
@@ -402,7 +418,7 @@ export function CheckinPage() {
               />
             </div>
           ) : (
-            <div className="mt-4 flex aspect-video items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-sm text-gray-500">
+            <div className="mt-4 flex aspect-video items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/70 p-6 text-center text-sm text-slate-500">
               Webcam scanner is off. Click &ldquo;Enable Webcam Scanner&rdquo;
               to scan attendee QR codes using your device camera.
             </div>
@@ -411,16 +427,18 @@ export function CheckinPage() {
       </div>
 
       {/* Manual Ticket Code Check-in */}
-      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-xs">
-        <div className="flex items-center gap-2">
-          <Keyboard className="h-5 w-5 text-indigo-600" />
-          <h2 className="text-lg font-semibold text-gray-900">
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+            <Keyboard className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <h2 className="text-lg font-bold text-slate-950">
             Manual Ticket Code Check-in
           </h2>
         </div>
-        <p className="mt-1 text-sm text-gray-600">
+        <p className="mt-2 text-sm text-slate-600">
           Enter a participant&apos;s raw ticket code (e.g.{" "}
-          <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs">
+          <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-800">
             BEO-XXXX
           </code>
           ) when their screen cannot be scanned.
@@ -433,7 +451,7 @@ export function CheckinPage() {
           <div className="flex-1">
             <label
               htmlFor="manual-ticket-code-input"
-              className="block text-sm font-medium text-gray-700"
+              className="block text-sm font-semibold text-slate-700"
             >
               Manual Ticket Code
             </label>
@@ -444,14 +462,14 @@ export function CheckinPage() {
               value={manualTicketCode}
               onChange={(e) => setManualTicketCode(e.target.value)}
               placeholder="e.g. BEO-XXXX"
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2.5 font-mono text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+              className="mt-1.5 block w-full rounded-xl border border-slate-300 px-3.5 py-2.5 font-mono text-sm shadow-2xs focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
             />
           </div>
 
           <button
             type="submit"
             disabled={isSubmitting || !manualTicketCode.trim()}
-            className="rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
+            className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-slate-800 disabled:opacity-50"
           >
             {isSubmitting ? "Checking In..." : "Manual Check-In"}
           </button>
@@ -459,49 +477,49 @@ export function CheckinPage() {
       </div>
 
       {/* Recent Scan Log */}
-      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-xs">
-        <h2 className="text-lg font-semibold text-gray-900">
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs">
+        <h2 className="text-lg font-bold text-slate-950">
           Recent Scans ({recentScans.length})
         </h2>
 
         {recentScans.length === 0 ? (
-          <p className="mt-3 text-sm text-gray-500">
+          <p className="mt-3 text-sm text-slate-500">
             No scans recorded in this session yet.
           </p>
         ) : (
-          <ul className="mt-4 divide-y divide-gray-200">
+          <ul className="mt-4 divide-y divide-slate-100">
             {recentScans.map((scan) => (
               <li
                 key={scan.id}
                 className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm"
               >
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span
-                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                         scan.status === "success"
                           ? "bg-emerald-100 text-emerald-800"
                           : scan.status === "duplicate"
                             ? "bg-amber-100 text-amber-800"
-                            : "bg-red-100 text-red-800"
+                            : "bg-rose-100 text-rose-800"
                       }`}
                     >
                       {scan.status.toUpperCase()}
                     </span>
-                    <span className="font-medium text-gray-900">
+                    <span className="font-semibold text-slate-900">
                       {scan.attendeeName ?? scan.message}
                     </span>
                     {scan.ticketCode && (
-                      <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-700">
+                      <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-700">
                         {scan.ticketCode}
                       </code>
                     )}
                   </div>
-                  <p className="mt-0.5 truncate text-xs text-gray-500">
+                  <p className="mt-0.5 truncate text-xs text-slate-500">
                     {scan.message} · Mode: {scan.scanMode.toUpperCase()}
                   </p>
                 </div>
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-slate-400 tabular-nums">
                   {new Date(scan.timestamp).toLocaleTimeString()}
                 </span>
               </li>

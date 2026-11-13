@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import { LogIn } from "lucide-react";
 import { useAuth } from "./AuthContext";
 import { LoginSchema } from "@beo/contracts";
 
@@ -44,13 +45,16 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-[70vh] items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl ring-1 ring-gray-900/5">
+    <div className="flex min-h-[72vh] items-center justify-center py-8">
+      <div className="w-full max-w-md rounded-3xl border border-slate-200/80 bg-white p-8 shadow-sm">
         <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+          <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 ring-1 ring-inset ring-indigo-600/15">
+            <LogIn className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-950">
             Sign In to BEO
           </h1>
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="mt-1.5 text-sm text-slate-600">
             Enter your credentials to manage events and tickets
           </p>
         </div>
@@ -58,7 +62,7 @@ export function LoginPage() {
         {error && (
           <div
             role="alert"
-            className="mb-6 rounded-lg bg-red-50 p-4 text-sm text-red-700 ring-1 ring-red-200"
+            className="mb-6 rounded-xl border border-rose-200 bg-rose-50 p-3.5 text-sm text-rose-700"
           >
             {error}
           </div>
@@ -68,7 +72,7 @@ export function LoginPage() {
           <div>
             <label
               htmlFor="email"
-              className="block text-sm font-medium text-gray-700"
+              className="block text-sm font-semibold text-slate-700"
             >
               Email address
             </label>
@@ -80,7 +84,7 @@ export function LoginPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-600 sm:text-sm"
+              className="mt-1.5 block w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 shadow-2xs placeholder:text-slate-400 focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
               placeholder="you@example.com"
             />
           </div>
@@ -88,7 +92,7 @@ export function LoginPage() {
           <div>
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-gray-700"
+              className="block text-sm font-semibold text-slate-700"
             >
               Password
             </label>
@@ -100,7 +104,7 @@ export function LoginPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-600 sm:text-sm"
+              className="mt-1.5 block w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 shadow-2xs placeholder:text-slate-400 focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
               placeholder="••••••••"
             />
           </div>
@@ -108,17 +112,17 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="flex w-full justify-center rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50"
+            className="flex w-full justify-center rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-indigo-500 disabled:opacity-50"
           >
             {loading ? "Signing in..." : "Sign in"}
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-gray-600">
+        <p className="mt-6 text-center text-sm text-slate-600">
           Don&apos;t have an account?{" "}
           <Link
             to="/register"
-            className="font-medium text-indigo-600 hover:text-indigo-500"
+            className="font-semibold text-indigo-600 hover:text-indigo-500"
           >
             Sign up
           </Link>

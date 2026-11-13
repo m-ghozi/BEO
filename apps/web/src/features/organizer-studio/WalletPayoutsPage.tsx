@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Wallet, ArrowLeft, Landmark, Clock } from "lucide-react";
 import {
   PayoutRequestSchema,
   type PayoutRequestDTO,
@@ -112,50 +113,57 @@ export function WalletPayoutsPage() {
         : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <Link
             to="/organizer"
-            className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-500"
           >
-            &larr; Back to Organizer Studio
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            <span>Back to Organizer Studio</span>
           </Link>
-          <h1 className="mt-1 text-2xl font-bold text-gray-900">
+          <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-950">
             Wallet &amp; Payouts
           </h1>
-          <p className="text-sm text-gray-600">
+          <p className="mt-1 text-sm text-slate-600">
             View your available ticket revenue balance and request bank payouts.
           </p>
         </div>
       </div>
 
-      {/* Balance Card */}
-      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-xs">
-        <p className="text-sm font-medium text-gray-500">Available Balance</p>
+      {/* Balance KPI Card */}
+      <div className="rounded-3xl bg-slate-950 p-6 text-white shadow-lg sm:p-8">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-indigo-300">
+          <Wallet className="h-4 w-4" aria-hidden="true" />
+          <span>Available Balance</span>
+        </div>
         {isLoading ? (
-          <p className="mt-2 text-lg text-gray-400">Loading wallet...</p>
+          <p className="mt-3 text-lg text-slate-300">Loading wallet...</p>
         ) : walletError ? (
-          <p role="alert" className="mt-2 text-sm text-red-600">
+          <p role="alert" className="mt-3 text-sm text-rose-300">
             {walletError instanceof Error
               ? walletError.message
               : "Failed to load wallet balance."}
           </p>
         ) : (
-          <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900">
+          <p className="mt-2 text-3xl font-extrabold tracking-tight text-white tabular-nums sm:text-4xl">
             {formatIDR(wallet?.balance ?? 0)}
           </p>
         )}
       </div>
 
       {/* Payout Request Form */}
-      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-xs">
-        <h2 className="text-lg font-semibold text-gray-900">Request Payout</h2>
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs">
+        <div className="flex items-center gap-2">
+          <Landmark className="h-5 w-5 text-indigo-600" aria-hidden="true" />
+          <h2 className="text-lg font-bold text-slate-950">Request Payout</h2>
+        </div>
 
         {(validationError || apiErrorMsg) && (
           <div
             role="alert"
-            className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
           >
             {validationError ?? apiErrorMsg}
           </div>
@@ -164,17 +172,17 @@ export function WalletPayoutsPage() {
         {successMessage && (
           <div
             role="status"
-            className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+            className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
           >
             {successMessage}
           </div>
         )}
 
-        <form noValidate onSubmit={handleSubmit} className="mt-4 grid gap-4 sm:grid-cols-2">
+        <form noValidate onSubmit={handleSubmit} className="mt-5 grid gap-4 sm:grid-cols-2">
           <div>
             <label
               htmlFor="payout-amount"
-              className="block text-sm font-medium text-gray-700"
+              className="block text-sm font-semibold text-slate-700"
             >
               Amount (IDR)
             </label>
@@ -186,7 +194,7 @@ export function WalletPayoutsPage() {
               value={amountInput}
               onChange={(e) => setAmountInput(e.target.value)}
               placeholder="e.g. 250000"
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-2xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="mt-1.5 block w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm tabular-nums shadow-2xs focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
               required
             />
           </div>
@@ -194,7 +202,7 @@ export function WalletPayoutsPage() {
           <div>
             <label
               htmlFor="bank-name"
-              className="block text-sm font-medium text-gray-700"
+              className="block text-sm font-semibold text-slate-700"
             >
               Bank Name
             </label>
@@ -204,7 +212,7 @@ export function WalletPayoutsPage() {
               value={bankName}
               onChange={(e) => setBankName(e.target.value)}
               placeholder="e.g. BCA, Mandiri"
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-2xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="mt-1.5 block w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm shadow-2xs focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
               required
             />
           </div>
@@ -212,7 +220,7 @@ export function WalletPayoutsPage() {
           <div>
             <label
               htmlFor="bank-account-number"
-              className="block text-sm font-medium text-gray-700"
+              className="block text-sm font-semibold text-slate-700"
             >
               Account Number
             </label>
@@ -222,7 +230,7 @@ export function WalletPayoutsPage() {
               value={bankAccountNumber}
               onChange={(e) => setBankAccountNumber(e.target.value)}
               placeholder="e.g. 1234567890"
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-2xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="mt-1.5 block w-full rounded-xl border border-slate-300 px-3.5 py-2 font-mono text-sm shadow-2xs focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
               required
             />
           </div>
@@ -230,7 +238,7 @@ export function WalletPayoutsPage() {
           <div>
             <label
               htmlFor="bank-account-name"
-              className="block text-sm font-medium text-gray-700"
+              className="block text-sm font-semibold text-slate-700"
             >
               Account Holder Name
             </label>
@@ -240,16 +248,16 @@ export function WalletPayoutsPage() {
               value={bankAccountName}
               onChange={(e) => setBankAccountName(e.target.value)}
               placeholder="e.g. PT Acara Indonesia"
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-2xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="mt-1.5 block w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm shadow-2xs focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
               required
             />
           </div>
 
-          <div className="sm:col-span-2 flex justify-end">
+          <div className="flex justify-end sm:col-span-2">
             <button
               type="submit"
               disabled={payoutMutation.isPending || isLoading}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-indigo-500 disabled:opacity-50"
+              className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-indigo-500 disabled:opacity-50"
             >
               {payoutMutation.isPending ? "Submitting..." : "Request Payout"}
             </button>
@@ -258,39 +266,43 @@ export function WalletPayoutsPage() {
       </div>
 
       {/* Payout History */}
-      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-xs">
-        <h2 className="text-lg font-semibold text-gray-900">
-          Payout History
-        </h2>
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs">
+        <div className="flex items-center gap-2">
+          <Clock className="h-5 w-5 text-slate-500" aria-hidden="true" />
+          <h2 className="text-lg font-bold text-slate-950">Payout History</h2>
+        </div>
         {payoutsLoading ? (
-          <p className="mt-4 text-sm text-gray-500">Loading payout history...</p>
+          <p className="mt-4 text-sm text-slate-500">Loading payout history...</p>
         ) : payoutsError ? (
-          <p role="alert" className="mt-4 text-sm text-red-600">
+          <p role="alert" className="mt-4 text-sm text-rose-600">
             {payoutsError instanceof Error
               ? payoutsError.message
               : "Failed to load payout history."}
           </p>
         ) : payouts.length === 0 ? (
-          <p className="mt-4 text-sm text-gray-500">
+          <p className="mt-4 text-sm text-slate-500">
             No payout requests submitted yet.
           </p>
         ) : (
-          <ul className="mt-4 divide-y divide-gray-200">
+          <ul className="mt-4 divide-y divide-slate-100">
             {payouts.map((p) => (
               <li
                 key={p.id}
-                className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"
+                className="flex flex-wrap items-center justify-between gap-2 py-3.5 text-sm"
               >
                 <div>
-                  <p className="font-medium text-gray-900">
-                    {formatIDR(p.amount)} &rarr; {p.bank_name} ({p.bank_account_number})
+                  <p className="font-semibold text-slate-950 tabular-nums">
+                    {formatIDR(p.amount)} &rarr; {p.bank_name}{" "}
+                    <span className="font-mono text-xs text-slate-600">
+                      ({p.bank_account_number})
+                    </span>
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-slate-500">
                     {p.bank_account_name} &middot;{" "}
                     {new Date(p.requested_at ?? p.created_at).toLocaleString()}
                   </p>
                 </div>
-                <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+                <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-600/20">
                   {p.status}
                 </span>
               </li>

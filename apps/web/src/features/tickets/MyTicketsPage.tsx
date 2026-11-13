@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
+import { Ticket, Plus, Download, CheckCircle2, QrCode } from "lucide-react";
 import type { TicketDTO } from "@beo/contracts";
 import { apiFetch, API_BASE_URL } from "../../lib/api";
 
@@ -28,14 +29,14 @@ export function MyTicketsPage() {
   }, [fetchTickets]);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="space-y-8">
       {/* Page Header */}
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-950">
             My Tickets
           </h1>
-          <p className="mt-1 text-sm text-gray-600">
+          <p className="mt-1 text-sm text-slate-600">
             View your event tickets, download digital PDF passes, and display QR
             codes for on-site check-in.
           </p>
@@ -43,22 +44,10 @@ export function MyTicketsPage() {
         <div className="flex items-center gap-3">
           <Link
             to="/claim"
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-indigo-500"
           >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth="1.5"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 4.5v15m7.5-7.5h-15"
-              />
-            </svg>
-            Claim a Ticket
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            <span>Claim a Ticket</span>
           </Link>
         </div>
       </div>
@@ -67,13 +56,13 @@ export function MyTicketsPage() {
       {error && (
         <div
           role="alert"
-          className="mb-8 flex items-center justify-between rounded-lg bg-red-50 p-4 text-sm text-red-700 ring-1 ring-red-200"
+          className="flex items-center justify-between rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
         >
           <span>{error}</span>
           <button
             type="button"
             onClick={fetchTickets}
-            className="font-semibold underline hover:text-red-800"
+            className="font-semibold underline hover:text-rose-900"
           >
             Try Again
           </button>
@@ -84,7 +73,7 @@ export function MyTicketsPage() {
       {loading && (
         <div className="flex min-h-[40vh] flex-col items-center justify-center py-12 text-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
-          <p className="mt-4 text-sm font-medium text-gray-600">
+          <p className="mt-4 text-sm font-medium text-slate-600">
             Loading your tickets...
           </p>
         </div>
@@ -92,39 +81,27 @@ export function MyTicketsPage() {
 
       {/* Empty state */}
       {!loading && !error && tickets && tickets.length === 0 && (
-        <div className="flex min-h-[40vh] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white p-12 text-center">
+        <div className="flex min-h-[40vh] flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-200 bg-white p-12 text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
-            <svg
-              className="h-7 w-7"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth="1.5"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 0 1 0 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 0 1 0-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375Z"
-              />
-            </svg>
+            <Ticket className="h-7 w-7" aria-hidden="true" />
           </div>
-          <h2 className="mt-4 text-lg font-semibold text-gray-900">
+          <h2 className="mt-4 text-lg font-bold text-slate-950">
             No tickets found
           </h2>
-          <p className="mt-1.5 max-w-sm text-sm text-gray-500">
+          <p className="mt-1.5 max-w-sm text-sm text-slate-500">
             You don&apos;t have any event tickets in your wallet yet. Claim a ticket
             using a claim token or browse public events.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
             <Link
               to="/claim"
-              className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+              className="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-indigo-500"
             >
               Claim a Ticket
             </Link>
             <Link
               to="/"
-              className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-2xs hover:bg-gray-50"
+              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-2xs hover:bg-slate-50"
             >
               Browse Events
             </Link>
@@ -138,83 +115,79 @@ export function MyTicketsPage() {
           {tickets.map((ticket) => {
             const isCheckedIn = Boolean(ticket.checked_in_at);
             return (
-              <div
+              <article
                 key={ticket.id}
-                className="flex flex-col justify-between overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-gray-900/5 transition hover:shadow-lg"
+                className="flex flex-col justify-between overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
               >
-                {/* Ticket Top Info */}
-                <div className="p-6">
+                {/* Pass Header */}
+                <div className="border-b border-dashed border-slate-200 bg-slate-50/70 px-6 py-4">
                   <div className="flex items-center justify-between gap-2">
                     <span
-                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${
+                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${
                         isCheckedIn
-                          ? "bg-gray-100 text-gray-700 ring-gray-600/20"
-                          : "bg-green-50 text-green-700 ring-green-600/20"
+                          ? "bg-slate-100 text-slate-700 ring-slate-600/20"
+                          : "bg-emerald-50 text-emerald-700 ring-emerald-600/20"
                       }`}
                     >
+                      {!isCheckedIn && (
+                        <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                      )}
                       {isCheckedIn ? "Checked In" : ticket.status || "Valid"}
                     </span>
-                    <span className="font-mono text-xs font-medium text-gray-500">
+                    <span className="font-mono text-xs font-semibold text-slate-600">
                       {ticket.ticket_code}
                     </span>
                   </div>
+                </div>
 
-                  <div className="mt-4">
-                    <p className="text-xs font-medium uppercase tracking-wider text-gray-400">
+                {/* Pass Body */}
+                <div className="p-6">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                       Attendee
                     </p>
-                    <h3 className="mt-0.5 text-lg font-bold text-gray-900">
+                    <h3 className="mt-0.5 text-lg font-bold text-slate-950">
                       {ticket.attendee_name}
                     </h3>
-                    <p className="text-sm text-gray-500">{ticket.attendee_email}</p>
+                    <p className="text-sm text-slate-500">{ticket.attendee_email}</p>
                   </div>
 
                   {ticket.checked_in_at && (
-                    <div className="mt-3 rounded-md bg-gray-50 px-3 py-1.5 text-xs text-gray-600">
-                      Checked in on{" "}
-                      {new Date(ticket.checked_in_at).toLocaleString()}
+                    <div className="mt-3 rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 tabular-nums">
+                      Checked in on {new Date(ticket.checked_in_at).toLocaleString()}
                     </div>
                   )}
 
-                  {/* QR Image Preview */}
-                  <div className="mt-6 flex flex-col items-center justify-center rounded-xl border border-gray-100 bg-gray-50 p-4">
-                    <img
-                      src={`${API_BASE_URL}/v1/tickets/${ticket.ticket_code}/qr.png`}
-                      alt={`QR Code for ${ticket.ticket_code}`}
-                      className="h-44 w-44 object-contain"
-                    />
-                    <span className="mt-2 text-xs font-medium text-gray-500">
-                      Show at venue gate
+                  {/* Crisp QR Frame */}
+                  <div className="mt-5 flex flex-col items-center justify-center rounded-2xl border border-slate-200/80 bg-slate-50/60 p-4">
+                    <div className="rounded-xl bg-white p-2.5 shadow-2xs ring-1 ring-slate-200/70">
+                      <img
+                        src={`${API_BASE_URL}/v1/tickets/${ticket.ticket_code}/qr.png`}
+                        alt={`QR Code for ${ticket.ticket_code}`}
+                        className="h-40 w-40 object-contain"
+                      />
+                    </div>
+                    <span className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                      <QrCode className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
+                      <span>Show at venue gate</span>
                     </span>
                   </div>
                 </div>
 
                 {/* Ticket Footer Actions */}
-                <div className="border-t border-gray-100 bg-gray-50/50 p-4">
+                <div className="border-t border-slate-100 bg-slate-50/50 p-4">
                   <a
                     href={`${API_BASE_URL}/v1/tickets/${ticket.ticket_code}/pdf`}
                     target="_blank"
                     rel="noopener noreferrer"
                     download={`ticket-${ticket.ticket_code}.pdf`}
-                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-indigo-500"
                   >
-                    <svg
-                      className="h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      strokeWidth="1.5"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"
-                      />
-                    </svg>
-                    Download PDF
+                    <Download className="h-4 w-4" aria-hidden="true" />
+                    <span>Download PDF</span>
                   </a>
                 </div>
-              </div>
+              </article>
             );
           })}
         </div>

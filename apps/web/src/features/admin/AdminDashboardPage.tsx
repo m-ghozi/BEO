@@ -225,13 +225,13 @@ export function AdminDashboardPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-950">
             Platform Admin
           </h1>
-          <p className="mt-1 text-sm text-gray-600">
+          <p className="mt-1 text-sm text-slate-600">
             Monitor platform metrics, process organizer payouts, configure
             commission rates, and inspect audit logs.
           </p>
@@ -239,11 +239,11 @@ export function AdminDashboardPage() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200">
+      <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white p-1.5 shadow-2xs">
         <nav
           role="tablist"
           aria-label="Admin sections"
-          className="-mb-px flex flex-wrap gap-6"
+          className="flex min-w-max gap-1"
         >
           {TABS.map((tab) => {
             const isActive = activeTab === tab.id;
@@ -257,10 +257,10 @@ export function AdminDashboardPage() {
                   setActiveTab(tab.id);
                   setFeedback(null);
                 }}
-                className={`whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium transition-colors ${
+                className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
                   isActive
-                    ? "border-indigo-600 text-indigo-600"
-                    : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
+                    ? "bg-indigo-600 text-white shadow-xs"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
                 }`}
               >
                 {tab.label}
@@ -327,12 +327,12 @@ export function AdminDashboardPage() {
               ].map((card) => (
                 <div
                   key={card.label}
-                  className="rounded-xl border border-gray-200 bg-white p-5 shadow-2xs"
+                  className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs"
                 >
-                  <p className="text-sm font-medium text-gray-500">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                     {card.label}
                   </p>
-                  <p className="mt-2 text-2xl font-bold tracking-tight text-gray-900">
+                  <p className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950 tabular-nums">
                     {card.value}
                   </p>
                 </div>

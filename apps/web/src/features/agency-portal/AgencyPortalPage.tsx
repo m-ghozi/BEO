@@ -57,7 +57,6 @@ export function AgencyPortalPage() {
       setCopiedToken(token);
       setTimeout(() => setCopiedToken(null), 2500);
     } catch {
-      // Fallback
       setCopiedToken(token);
       setTimeout(() => setCopiedToken(null), 2500);
     }
@@ -100,7 +99,6 @@ export function AgencyPortalPage() {
       );
 
       setIssuedTickets((prev) => [...result, ...prev]);
-      // Reset attendees to initial single empty row
       setAttendees([{ name: "", email: "" }]);
     } catch (err: unknown) {
       if (err instanceof ApiError) {
@@ -118,18 +116,18 @@ export function AgencyPortalPage() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="border-b border-gray-200 pb-5">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-            <Building2 className="h-6 w-6" />
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs">
+        <div className="flex items-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 ring-1 ring-inset ring-indigo-600/15">
+            <Building2 className="h-6 w-6" aria-hidden="true" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
+            <h1 className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
               Agency Portal
             </h1>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-slate-600">
               Issue tickets from your allocated quota and distribute claim tokens to attendees. Logged in as{" "}
-              <span className="font-semibold text-gray-700">{user?.name || user?.email}</span>.
+              <span className="font-semibold text-slate-900">{user?.name || user?.email}</span>.
             </p>
           </div>
         </div>
@@ -139,7 +137,7 @@ export function AgencyPortalPage() {
       {errorMessage && (
         <div
           role="alert"
-          className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+          className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
         >
           <div className="flex items-center gap-2 font-semibold">
             <span>Error:</span>
@@ -149,8 +147,8 @@ export function AgencyPortalPage() {
       )}
 
       {/* Issue Form */}
-      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-xs">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs">
+        <h2 className="mb-5 text-lg font-bold text-slate-950">
           Issue Allocated Tickets
         </h2>
 
@@ -159,7 +157,7 @@ export function AgencyPortalPage() {
             <div>
               <label
                 htmlFor="eventId"
-                className="block text-sm font-medium text-gray-700 mb-1"
+                className="mb-1.5 block text-sm font-semibold text-slate-700"
               >
                 Event ID
               </label>
@@ -170,7 +168,7 @@ export function AgencyPortalPage() {
                 value={eventId}
                 onChange={(e) => setEventId(e.target.value)}
                 placeholder="e.g. evt-uuid"
-                className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                className="block w-full rounded-xl border border-slate-300 px-3.5 py-2 font-mono text-sm text-slate-900 placeholder-slate-400 shadow-2xs focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
                 required
               />
             </div>
@@ -178,7 +176,7 @@ export function AgencyPortalPage() {
             <div>
               <label
                 htmlFor="ticketTypeId"
-                className="block text-sm font-medium text-gray-700 mb-1"
+                className="mb-1.5 block text-sm font-semibold text-slate-700"
               >
                 Ticket Type ID
               </label>
@@ -189,7 +187,7 @@ export function AgencyPortalPage() {
                 value={ticketTypeId}
                 onChange={(e) => setTicketTypeId(e.target.value)}
                 placeholder="e.g. tt-uuid"
-                className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                className="block w-full rounded-xl border border-slate-300 px-3.5 py-2 font-mono text-sm text-slate-900 placeholder-slate-400 shadow-2xs focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
                 required
               />
             </div>
@@ -198,16 +196,16 @@ export function AgencyPortalPage() {
           {/* Attendees List */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="block text-sm font-semibold text-slate-700">
                 Attendees ({attendees.length})
               </label>
               <button
                 type="button"
                 onClick={handleAddAttendee}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-500"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
               >
-                <Plus className="h-4 w-4" />
-                Add Attendee
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Add Attendee</span>
               </button>
             </div>
 
@@ -215,7 +213,7 @@ export function AgencyPortalPage() {
               {attendees.map((att, idx) => (
                 <div
                   key={idx}
-                  className="flex flex-col gap-3 rounded-lg border border-gray-100 bg-gray-50/70 p-3 sm:flex-row sm:items-center"
+                  className="flex flex-col gap-3 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3 sm:flex-row sm:items-center"
                 >
                   <div className="flex-1">
                     <label
@@ -233,7 +231,7 @@ export function AgencyPortalPage() {
                       onChange={(e) =>
                         handleAttendeeChange(idx, "name", e.target.value)
                       }
-                      className="block w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                      className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder-slate-400 shadow-2xs focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
                       required
                     />
                   </div>
@@ -253,7 +251,7 @@ export function AgencyPortalPage() {
                       onChange={(e) =>
                         handleAttendeeChange(idx, "email", e.target.value)
                       }
-                      className="block w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                      className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder-slate-400 shadow-2xs focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
                       required
                     />
                   </div>
@@ -261,11 +259,11 @@ export function AgencyPortalPage() {
                     <button
                       type="button"
                       onClick={() => handleRemoveAttendee(idx)}
-                      className="self-end rounded-md p-1.5 text-gray-400 hover:bg-gray-200 hover:text-gray-600 sm:self-center"
+                      className="self-end rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 sm:self-center"
                       title="Remove attendee"
                       aria-label="Remove attendee"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
                     </button>
                   )}
                 </div>
@@ -277,7 +275,7 @@ export function AgencyPortalPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50"
+              className="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-indigo-500 disabled:opacity-50"
             >
               {isLoading ? "Issuing Tickets..." : "Issue Tickets"}
             </button>
@@ -289,9 +287,9 @@ export function AgencyPortalPage() {
       {issuedTickets.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center gap-2">
-            <TicketIcon className="h-5 w-5 text-indigo-600" />
-            <h2 className="text-xl font-bold text-gray-900">
-              Issued Tickets & Claim Links ({issuedTickets.length})
+            <TicketIcon className="h-5 w-5 text-indigo-600" aria-hidden="true" />
+            <h2 className="text-xl font-bold text-slate-950">
+              Issued Tickets &amp; Claim Links ({issuedTickets.length})
             </h2>
           </div>
 
@@ -308,44 +306,44 @@ export function AgencyPortalPage() {
               return (
                 <div
                   key={tkt.id}
-                  className="rounded-xl border border-gray-200 bg-white p-5 shadow-xs space-y-3"
+                  className="space-y-3 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs"
                 >
                   <div className="flex items-start justify-between">
                     <div>
-                      <h3 className="font-semibold text-gray-900">
+                      <h3 className="font-bold text-slate-950">
                         {tkt.attendee_name}
                       </h3>
-                      <p className="text-sm text-gray-500">{tkt.attendee_email}</p>
+                      <p className="text-sm text-slate-500">{tkt.attendee_email}</p>
                     </div>
-                    <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
+                    <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
                       {tkt.status}
                     </span>
                   </div>
 
-                  <div className="rounded-lg bg-gray-50 p-3 text-xs space-y-1.5 font-mono">
+                  <div className="space-y-1.5 rounded-xl bg-slate-50 p-3 font-mono text-xs">
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Ticket Code:</span>
-                      <span className="font-semibold text-gray-800">
+                      <span className="text-slate-500">Ticket Code:</span>
+                      <span className="font-semibold text-slate-800">
                         {tkt.ticket_code}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-500">Claim Token:</span>
-                      <span className="text-indigo-700 break-all">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-500">Claim Token:</span>
+                      <span className="break-all text-indigo-700">
                         {tkt.claim_token}
                       </span>
                     </div>
                   </div>
 
                   {tkt.claim_token && (
-                    <div className="space-y-2 pt-1">
-                      <label className="block text-xs font-medium text-gray-500">
+                    <div className="space-y-1.5 pt-1">
+                      <label className="block text-xs font-medium text-slate-500">
                         Attendee Claim URL:
                       </label>
                       <div className="flex items-center gap-2">
                         <Link
                           to={claimPath}
-                          className="flex-1 truncate text-xs font-medium text-indigo-600 hover:underline"
+                          className="flex-1 truncate text-xs font-semibold text-indigo-600 hover:underline"
                           title={fullClaimUrl}
                         >
                           {claimPath}
@@ -353,16 +351,16 @@ export function AgencyPortalPage() {
                         <button
                           type="button"
                           onClick={() => handleCopyClaimUrl(tkt.claim_token!)}
-                          className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 shadow-2xs hover:bg-gray-50"
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50"
                         >
                           {isCopied ? (
                             <>
-                              <Check className="h-3.5 w-3.5 text-green-600" />
-                              <span className="text-green-600">Copied!</span>
+                              <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+                              <span className="text-emerald-600">Copied!</span>
                             </>
                           ) : (
                             <>
-                              <Copy className="h-3.5 w-3.5 text-gray-500" />
+                              <Copy className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
                               <span>Copy Claim URL</span>
                             </>
                           )}
