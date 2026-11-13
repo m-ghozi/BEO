@@ -25,5 +25,46 @@ services:
       - "1025:1025"
       - "8025:8025"
 
+  api:
+    build:
+      context: ../apps/api
+      dockerfile: Dockerfile
+    container_name: beo_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    environment:
+      PORT: "8080"
+      DATABASE_URL: "postgres://beo:beo@postgres:5432/beo?sslmode=disable"
+      MIGRATIONS_DIR: "/app/migrations"
+      JWT_SECRET: "beo-super-secret-jwt-key-for-dev-32b"
+      QR_HMAC_SECRET: "beo-super-secret-qr-hmac-key-32b"
+      SMTP_HOST: "mailpit"
+      SMTP_PORT: "1025"
+      SMTP_FROM: "no-reply@cerdas.club"
+      CORS_ALLOW_ORIGIN: "*"
+      STORAGE_DIR: "/app/uploads"
+    ports:
+      - "8080:8080"
+    volumes:
+      - api_uploads:/app/uploads
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_BASE_URL: "http://localhost:8080"
+    container_name: beo_web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "5173:80"
+
 volumes:
   postgres_data:
+  api_uploads:

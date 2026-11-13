@@ -30,6 +30,7 @@ func NewHandler(svc *Service, jwtSecret string) *Handler {
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	auth := identity.AuthMiddleware(h.jwtSecret)
 
+	mux.HandleFunc("GET /v1/events/{eventID}/ticket-types", h.handleListTicketTypes)
 	mux.Handle("POST /v1/events/{eventID}/ticket-types", auth(http.HandlerFunc(h.handleCreateTicketType)))
 	mux.HandleFunc("POST /v1/events/{eventID}/orders", h.handleReserveOrder)
 	mux.Handle("POST /v1/events/{eventID}/agencies", auth(http.HandlerFunc(h.handleAllocateAgencyQuota)))
@@ -93,6 +94,16 @@ func (h *Handler) handleCreateTicketType(w http.ResponseWriter, r *http.Request)
 	}
 
 	writeJSON(w, http.StatusCreated, tt)
+}
+
+func (h *Handler) handleListTicketTypes(w http.ResponseWriter, r *http.Request) {
+	eventID := strings.TrimSpace(r.PathValue("eventID"))
+	types, err := h.svc.ListTicketTypes(r.Context(), eventID)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, types)
 }
 
 func (h *Handler) handleReserveOrder(w http.ResponseWriter, r *http.Request) {

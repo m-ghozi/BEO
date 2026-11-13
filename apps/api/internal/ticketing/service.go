@@ -236,6 +236,43 @@ func (s *Service) CreateTicketType(ctx context.Context, eventID, actorID string,
 	return tt, nil
 }
 
+// ListTicketTypes returns all ticket types configured for an event ordered by price ascending.
+func (s *Service) ListTicketTypes(ctx context.Context, eventID string) ([]TicketType, error) {
+	eventID = strings.TrimSpace(eventID)
+	if eventID == "" {
+		return nil, ErrInvalidInput
+	}
+
+	rows, err := s.db.Query(ctx, `
+		SELECT id, event_id, name, price, currency, quota, allocated_agency_quota,
+			sold_count, reserved_count, requires_accepted_cfp, sales_start_at, sales_end_at, created_at
+		FROM ticket_types
+		WHERE event_id = $1
+		ORDER BY price ASC, created_at ASC
+	`, eventID)
+	if err != nil {
+		return nil, fmt.Errorf("list ticket types: %w", err)
+	}
+	defer rows.Close()
+
+	types := []TicketType{}
+	for rows.Next() {
+		var tt TicketType
+		if err := rows.Scan(
+			&tt.ID, &tt.EventID, &tt.Name, &tt.Price, &tt.Currency, &tt.Quota,
+			&tt.AllocatedAgencyQuota, &tt.SoldCount, &tt.ReservedCount,
+			&tt.RequiresAcceptedCFP, &tt.SalesStartAt, &tt.SalesEndAt, &tt.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan ticket type: %w", err)
+		}
+		types = append(types, tt)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate ticket types: %w", err)
+	}
+	return types, nil
+}
+
 func (s *Service) insertTicket(
 	ctx context.Context,
 	tx pgx.Tx,
