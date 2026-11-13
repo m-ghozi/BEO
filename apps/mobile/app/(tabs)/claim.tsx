@@ -4,6 +4,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -15,6 +16,7 @@ import { ClaimTicketSchema, type TicketDTO } from "@beo/contracts";
 import { useAuth } from "../../src/context/AuthContext";
 import { apiFetch, ApiError } from "../../src/services/api";
 import { saveTicketsCache } from "../../src/services/offlineCache";
+import { colors, radii, shadows, spacing, typography } from "../../src/theme/tokens";
 
 function extractTokenFromUrl(url: string | null): string | null {
   if (!url) return null;
@@ -36,6 +38,7 @@ export default function ClaimScreen() {
   const [claimToken, setClaimToken] = useState(
     typeof paramToken === "string" ? paramToken : ""
   );
+  const [focused, setFocused] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [claimedTicket, setClaimedTicket] = useState<TicketDTO | null>(null);
@@ -111,7 +114,10 @@ export default function ClaimScreen() {
 
   if (claimedTicket) {
     return (
-      <View style={styles.container}>
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.container}
+      >
         <View style={styles.card}>
           <View style={styles.successBanner}>
             <Text style={styles.successTitle}>Ticket claimed!</Text>
@@ -120,14 +126,25 @@ export default function ClaimScreen() {
             </Text>
           </View>
 
-          <Text style={styles.detailLabel}>Ticket Code</Text>
-          <Text style={styles.ticketCode}>{claimedTicket.ticket_code}</Text>
-
-          <Text style={styles.detailLabel}>Attendee</Text>
-          <Text style={styles.attendeeName}>{claimedTicket.attendee_name}</Text>
+          <View style={styles.summaryBox}>
+            <View style={styles.summaryRow}>
+              <Text style={styles.detailLabel}>Ticket Code</Text>
+              <Text style={styles.ticketCode}>{claimedTicket.ticket_code}</Text>
+            </View>
+            <View style={styles.summaryDivider} />
+            <View style={styles.summaryRow}>
+              <Text style={styles.detailLabel}>Attendee</Text>
+              <Text style={styles.attendeeName}>
+                {claimedTicket.attendee_name}
+              </Text>
+            </View>
+          </View>
 
           <Pressable
-            style={styles.button}
+            style={({ pressed }) => [
+              styles.button,
+              pressed && styles.buttonPressed,
+            ]}
             onPress={() => router.push(`/tickets/${claimedTicket.ticket_code}`)}
             accessibilityRole="button"
           >
@@ -135,178 +152,231 @@ export default function ClaimScreen() {
           </Pressable>
 
           <Pressable
-            style={styles.secondaryButton}
+            style={({ pressed }) => [
+              styles.secondaryButton,
+              pressed && styles.secondaryButtonPressed,
+            ]}
             onPress={() => router.push("/(tabs)")}
             accessibilityRole="button"
           >
             <Text style={styles.secondaryButtonText}>Go to My Tickets</Text>
           </Pressable>
         </View>
-      </View>
+      </ScrollView>
     );
   }
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={styles.scrollContainer}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View style={styles.card}>
-        <Text style={styles.title}>Claim Ticket</Text>
-        <Text style={styles.subtitle}>
-          Enter the claim token from your invitation email or open a claim link.
-        </Text>
-
-        {error ? (
-          <View style={styles.errorBanner} accessibilityRole="alert">
-            <Text style={styles.errorText}>{error}</Text>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.card}>
+          <View style={styles.eyebrowPill}>
+            <Text style={styles.eyebrowPillText}>INVITATION CLAIM</Text>
           </View>
-        ) : null}
+          <Text style={styles.title}>Claim Ticket</Text>
+          <Text style={styles.subtitle}>
+            Enter the claim token from your invitation email or open a claim link.
+          </Text>
 
-        <Text style={styles.label}>Claim Token</Text>
-        <TextInput
-          style={styles.input}
-          value={claimToken}
-          onChangeText={setClaimToken}
-          placeholder="Paste your claim token"
-          autoCapitalize="none"
-          autoCorrect={false}
-          editable={!submitting}
-        />
+          {error ? (
+            <View style={styles.errorBanner} accessibilityRole="alert">
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
 
-        <Pressable
-          style={[styles.button, submitting && styles.buttonDisabled]}
-          onPress={() => void handleSubmit()}
-          disabled={submitting}
-          accessibilityRole="button"
-        >
-          {submitting ? (
-            <ActivityIndicator color="#ffffff" />
-          ) : (
-            <Text style={styles.buttonText}>Claim Ticket</Text>
-          )}
-        </Pressable>
-      </View>
+          <Text style={styles.label}>Claim Token</Text>
+          <TextInput
+            style={[styles.input, focused && styles.inputFocused]}
+            value={claimToken}
+            onChangeText={setClaimToken}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            placeholder="Paste your claim token"
+            placeholderTextColor={colors.inkSubtle}
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!submitting}
+          />
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.button,
+              pressed && !submitting && styles.buttonPressed,
+              submitting && styles.buttonDisabled,
+            ]}
+            onPress={() => void handleSubmit()}
+            disabled={submitting}
+            accessibilityRole="button"
+          >
+            {submitting ? (
+              <ActivityIndicator color={colors.white} />
+            ) : (
+              <Text style={styles.buttonText}>Claim Ticket</Text>
+            )}
+          </Pressable>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  scrollContainer: {
     flex: 1,
-    backgroundColor: "#f9fafb",
+    backgroundColor: colors.canvas,
+  },
+  container: {
+    flexGrow: 1,
     justifyContent: "center",
-    padding: 20,
+    padding: spacing.xl,
   },
   card: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 24,
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
+    padding: spacing.xxl,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: colors.border,
+    ...shadows.elevated,
+  },
+  eyebrowPill: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radii.pill,
+    marginBottom: spacing.md,
+  },
+  eyebrowPillText: {
+    ...typography.eyebrow,
+    color: colors.primary,
   },
   title: {
+    ...typography.h1,
     fontSize: 22,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   subtitle: {
-    fontSize: 14,
-    color: "#6b7280",
-    marginBottom: 20,
+    ...typography.bodyMuted,
+    marginBottom: spacing.xl,
   },
   errorBanner: {
-    backgroundColor: "#fef2f2",
-    borderColor: "#fecaca",
+    backgroundColor: colors.dangerSoft,
+    borderColor: colors.dangerBorder,
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
+    borderRadius: radii.input,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
   },
   errorText: {
-    color: "#b91c1c",
-    fontSize: 14,
+    color: colors.danger,
+    fontSize: 13,
+    fontWeight: "600",
   },
   successBanner: {
-    backgroundColor: "#ecfdf5",
-    borderColor: "#a7f3d0",
+    backgroundColor: colors.successSoft,
+    borderColor: colors.successBorder,
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 14,
-    marginBottom: 20,
+    borderRadius: radii.input,
+    padding: spacing.lg,
+    marginBottom: spacing.xl,
   },
   successTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#047857",
+    color: colors.success,
   },
   successSubtitle: {
     fontSize: 13,
-    color: "#065f46",
-    marginTop: 2,
+    color: colors.inkMuted,
+    marginTop: 4,
+  },
+  summaryBox: {
+    backgroundColor: colors.canvas,
+    borderRadius: radii.input,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    marginBottom: spacing.xl,
+  },
+  summaryRow: {
+    gap: spacing.xs,
+  },
+  summaryDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: spacing.md,
   },
   label: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#374151",
-    marginBottom: 6,
+    ...typography.label,
+    marginBottom: spacing.xs + 2,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    color: "#111827",
-    backgroundColor: "#ffffff",
-    marginBottom: 16,
+    borderColor: colors.border,
+    borderRadius: radii.input,
+    paddingHorizontal: spacing.md + 2,
+    paddingVertical: spacing.md,
+    fontSize: 15,
+    color: colors.ink,
+    backgroundColor: colors.canvas,
+    marginBottom: spacing.lg,
+  },
+  inputFocused: {
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
   },
   detailLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#6b7280",
-    textTransform: "uppercase",
-    marginBottom: 4,
+    ...typography.eyebrow,
   },
   ticketCode: {
+    ...typography.mono,
     fontSize: 18,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 14,
+    color: colors.ink,
   },
   attendeeName: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#111827",
-    marginBottom: 20,
+    fontWeight: "700",
+    color: colors.ink,
   },
   button: {
-    backgroundColor: "#111827",
-    borderRadius: 8,
-    paddingVertical: 14,
+    backgroundColor: colors.primary,
+    borderRadius: radii.button,
+    paddingVertical: spacing.md + 2,
     alignItems: "center",
-    marginTop: 4,
+    marginTop: spacing.xs,
+    ...shadows.subtle,
+  },
+  buttonPressed: {
+    backgroundColor: colors.primaryDark,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
-    color: "#ffffff",
+    color: colors.white,
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   secondaryButton: {
     borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    paddingVertical: 14,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surface,
+    borderRadius: radii.button,
+    paddingVertical: spacing.md + 2,
     alignItems: "center",
-    marginTop: 10,
+    marginTop: spacing.md,
+  },
+  secondaryButtonPressed: {
+    backgroundColor: colors.canvas,
   },
   secondaryButtonText: {
-    color: "#111827",
+    color: colors.ink,
     fontSize: 15,
     fontWeight: "600",
   },

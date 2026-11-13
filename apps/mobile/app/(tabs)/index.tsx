@@ -17,6 +17,14 @@ import {
   saveTicketsCache,
 } from "../../src/services/offlineCache";
 import { getTicketStatusMeta } from "../../src/features/tickets/ticketStatus";
+import {
+  colors,
+  radii,
+  shadows,
+  spacing,
+  statusBadgeVariants,
+  typography,
+} from "../../src/theme/tokens";
 
 /**
  * Offline-capable ticket wallet listing the attendee's claimed tickets.
@@ -81,7 +89,7 @@ export default function MyTicketsScreen() {
   if (loading && !refreshing) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#111827" />
+        <ActivityIndicator size="large" color={colors.primary} />
         <Text style={styles.loadingText}>Loading your tickets...</Text>
       </View>
     );
@@ -104,7 +112,10 @@ export default function MyTicketsScreen() {
         <View style={styles.errorBanner} accessibilityRole="alert">
           <Text style={styles.errorText}>{error}</Text>
           <Pressable
-            style={styles.retryButton}
+            style={({ pressed }) => [
+              styles.retryButton,
+              pressed && styles.buttonPressed,
+            ]}
             onPress={() => void fetchTickets(false)}
             accessibilityRole="button"
           >
@@ -123,18 +134,25 @@ export default function MyTicketsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={() => void fetchTickets(true)}
+            tintColor={colors.primary}
           />
         }
         ListEmptyComponent={
           !error ? (
             <View style={styles.emptyCard}>
+              <View style={styles.emptyBadge}>
+                <Text style={styles.emptyBadgeText}>WALLET</Text>
+              </View>
               <Text style={styles.emptyTitle}>No tickets yet</Text>
               <Text style={styles.emptySubtitle}>
                 Claim a ticket with your claim token to store it here for offline
                 venue entry.
               </Text>
               <Pressable
-                style={styles.claimButton}
+                style={({ pressed }) => [
+                  styles.claimButton,
+                  pressed && styles.buttonPressed,
+                ]}
                 onPress={() => router.push("/(tabs)/claim")}
                 accessibilityRole="button"
               >
@@ -145,46 +163,48 @@ export default function MyTicketsScreen() {
         }
         renderItem={({ item }) => {
           const statusMeta = getTicketStatusMeta(item);
+          const badgePalette = statusBadgeVariants[statusMeta.badgeStyle];
+
           return (
             <Pressable
-              style={styles.ticketCard}
+              style={({ pressed }) => [
+                styles.ticketCard,
+                pressed && styles.ticketCardPressed,
+              ]}
               onPress={() => router.push(`/tickets/${item.ticket_code}`)}
               accessibilityRole="button"
             >
-              <View style={styles.ticketHeader}>
-                <View
-                  style={[
-                    styles.badge,
-                    statusMeta.badgeStyle === "checkedIn"
-                      ? styles.badgeCheckedIn
-                      : statusMeta.badgeStyle === "cancelled"
-                      ? styles.badgeCancelled
-                      : statusMeta.badgeStyle === "pending"
-                      ? styles.badgePending
-                      : styles.badgeValid,
-                  ]}
-                >
-                  <Text
+              <View style={styles.ticketAccentBar} />
+              <View style={styles.ticketBody}>
+                <View style={styles.ticketHeader}>
+                  <View
                     style={[
-                      styles.badgeText,
-                      statusMeta.badgeStyle === "checkedIn"
-                        ? styles.badgeTextCheckedIn
-                        : statusMeta.badgeStyle === "cancelled"
-                        ? styles.badgeTextCancelled
-                        : statusMeta.badgeStyle === "pending"
-                        ? styles.badgeTextPending
-                        : styles.badgeTextValid,
+                      styles.badge,
+                      {
+                        backgroundColor: badgePalette.bg,
+                        borderColor: badgePalette.border,
+                      },
                     ]}
                   >
-                    {statusMeta.label}
-                  </Text>
+                    <Text
+                      style={[styles.badgeText, { color: badgePalette.text }]}
+                    >
+                      {statusMeta.label}
+                    </Text>
+                  </View>
+                  <View style={styles.codePill}>
+                    <Text style={styles.ticketCode}>{item.ticket_code}</Text>
+                  </View>
                 </View>
-                <Text style={styles.ticketCode}>{item.ticket_code}</Text>
-              </View>
 
-              <Text style={styles.attendeeName}>{item.attendee_name}</Text>
-              <Text style={styles.attendeeEmail}>{item.attendee_email}</Text>
-              <Text style={styles.tapHint}>Tap to view offline QR pass</Text>
+                <Text style={styles.attendeeName}>{item.attendee_name}</Text>
+                <Text style={styles.attendeeEmail}>{item.attendee_email}</Text>
+
+                <View style={styles.ticketFooter}>
+                  <Text style={styles.tapHint}>Tap to view offline QR pass</Text>
+                  <Text style={styles.tapArrow}>→</Text>
+                </View>
+              </View>
             </Pressable>
           );
         }}
@@ -196,170 +216,196 @@ export default function MyTicketsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f9fafb",
+    backgroundColor: colors.canvas,
   },
   centerContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#f9fafb",
-    padding: 20,
+    backgroundColor: colors.canvas,
+    padding: spacing.xl,
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: "#6b7280",
+    marginTop: spacing.md,
+    ...typography.bodyMuted,
   },
   offlineBanner: {
-    backgroundColor: "#fffbeb",
+    backgroundColor: colors.warningSoft,
     borderBottomWidth: 1,
-    borderBottomColor: "#fde68a",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    borderBottomColor: colors.warningBorder,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
   },
   offlineTitle: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#92400e",
+    color: colors.warning,
   },
   offlineSubtitle: {
     fontSize: 12,
-    color: "#b45309",
+    color: colors.inkMuted,
     marginTop: 2,
   },
   errorBanner: {
-    margin: 16,
-    backgroundColor: "#fef2f2",
-    borderColor: "#fecaca",
+    margin: spacing.lg,
+    backgroundColor: colors.dangerSoft,
+    borderColor: colors.dangerBorder,
     borderWidth: 1,
-    borderRadius: 10,
-    padding: 14,
+    borderRadius: radii.input,
+    padding: spacing.md + 2,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
+    gap: spacing.md,
   },
   errorText: {
     flex: 1,
-    color: "#b91c1c",
-    fontSize: 14,
-  },
-  retryButton: {
-    backgroundColor: "#111827",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  retryButtonText: {
-    color: "#ffffff",
+    color: colors.danger,
     fontSize: 13,
     fontWeight: "600",
   },
+  retryButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  retryButtonText: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  buttonPressed: {
+    opacity: 0.88,
+  },
   listContent: {
-    padding: 16,
-    gap: 12,
+    padding: spacing.lg,
+    gap: spacing.md,
   },
   emptyListContent: {
     flexGrow: 1,
     justifyContent: "center",
-    padding: 20,
+    padding: spacing.xl,
   },
   emptyCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    padding: 24,
+    borderColor: colors.border,
+    padding: spacing.xxl,
     alignItems: "center",
+    ...shadows.card,
+  },
+  emptyBadge: {
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radii.pill,
+    marginBottom: spacing.md,
+  },
+  emptyBadgeText: {
+    ...typography.eyebrow,
+    color: colors.primary,
   },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 8,
+    ...typography.h2,
+    marginBottom: spacing.sm,
   },
   emptySubtitle: {
-    fontSize: 14,
-    color: "#6b7280",
+    ...typography.bodyMuted,
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: spacing.xl,
   },
   claimButton: {
-    backgroundColor: "#111827",
-    borderRadius: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    backgroundColor: colors.primary,
+    borderRadius: radii.button,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md + 2,
+    ...shadows.subtle,
   },
   claimButtonText: {
-    color: "#ffffff",
+    color: colors.white,
     fontSize: 15,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   ticketCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    padding: 16,
+    borderColor: colors.border,
+    flexDirection: "row",
+    overflow: "hidden",
+    ...shadows.card,
+  },
+  ticketCardPressed: {
+    opacity: 0.92,
+    transform: [{ scale: 0.99 }],
+  },
+  ticketAccentBar: {
+    width: 4,
+    backgroundColor: colors.primary,
+  },
+  ticketBody: {
+    flex: 1,
+    padding: spacing.lg,
   },
   ticketHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 10,
+    marginBottom: spacing.md,
+    gap: spacing.sm,
   },
   badge: {
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  badgeValid: {
-    backgroundColor: "#ecfdf5",
-  },
-  badgeCheckedIn: {
-    backgroundColor: "#f3f4f6",
-  },
-  badgeCancelled: {
-    backgroundColor: "#fef2f2",
-  },
-  badgePending: {
-    backgroundColor: "#fffbeb",
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    paddingHorizontal: spacing.md - 2,
+    paddingVertical: spacing.xs,
   },
   badgeText: {
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: "700",
   },
-  badgeTextValid: {
-    color: "#047857",
-  },
-  badgeTextCheckedIn: {
-    color: "#374151",
-  },
-  badgeTextCancelled: {
-    color: "#b91c1c",
-  },
-  badgeTextPending: {
-    color: "#b45309",
+  codePill: {
+    backgroundColor: colors.canvas,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
   },
   ticketCode: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#4b5563",
+    ...typography.mono,
+    fontSize: 12,
+    color: colors.inkMuted,
   },
   attendeeName: {
     fontSize: 17,
     fontWeight: "700",
-    color: "#111827",
+    color: colors.ink,
   },
   attendeeEmail: {
-    fontSize: 14,
-    color: "#6b7280",
+    ...typography.bodyMuted,
+    fontSize: 13,
     marginTop: 2,
+  },
+  ticketFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.surfaceMuted,
   },
   tapHint: {
     fontSize: 12,
-    color: "#4f46e5",
-    fontWeight: "600",
-    marginTop: 12,
+    color: colors.primary,
+    fontWeight: "700",
+  },
+  tapArrow: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: "700",
   },
 });

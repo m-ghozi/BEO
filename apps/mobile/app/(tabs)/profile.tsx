@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "../../src/context/AuthContext";
+import { colors, radii, shadows, spacing, typography } from "../../src/theme/tokens";
 
 /**
  * User profile, push notification sync, and sign-out screen.
@@ -17,6 +18,13 @@ export default function ProfileScreen() {
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  const initials = (user?.name ?? "B")
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
 
   const handleSyncPush = async () => {
     setSyncing(true);
@@ -49,7 +57,18 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.card}>
-        <Text style={styles.sectionLabel}>Account</Text>
+        <View style={styles.profileHeader}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{initials || "B"}</Text>
+          </View>
+          <View style={styles.profileIdentity}>
+            <Text style={styles.sectionLabel}>Account</Text>
+            <Text style={styles.profileSubtitle}>{user?.email ?? "—"}</Text>
+          </View>
+        </View>
+
+        <View style={styles.divider} />
+
         <View style={styles.row}>
           <Text style={styles.label}>Name</Text>
           <Text style={styles.value}>{user?.name ?? "—"}</Text>
@@ -60,9 +79,11 @@ export default function ProfileScreen() {
         </View>
         <View style={styles.row}>
           <Text style={styles.label}>Account Type</Text>
-          <Text style={[styles.value, styles.capitalize]}>
-            {user?.account_type ?? "—"}
-          </Text>
+          <View style={styles.typePill}>
+            <Text style={[styles.typePillText, styles.capitalize]}>
+              {user?.account_type ?? "—"}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -72,27 +93,37 @@ export default function ProfileScreen() {
           Sync your device token to receive event announcements and ticket updates.
         </Text>
         <Pressable
-          style={[styles.primaryButton, syncing && styles.buttonDisabled]}
+          style={({ pressed }) => [
+            styles.primaryButton,
+            pressed && !syncing && styles.primaryButtonPressed,
+            syncing && styles.buttonDisabled,
+          ]}
           onPress={() => void handleSyncPush()}
           disabled={syncing}
           accessibilityRole="button"
           accessibilityLabel="Sync Push Notifications"
         >
           {syncing ? (
-            <ActivityIndicator size="small" color="#ffffff" />
+            <ActivityIndicator size="small" color={colors.white} />
           ) : (
             <Text style={styles.primaryButtonText}>Sync Push Notifications</Text>
           )}
         </Pressable>
         {syncStatus ? (
-          <Text style={styles.statusText} accessibilityLiveRegion="polite">
-            {syncStatus}
-          </Text>
+          <View style={styles.statusBox}>
+            <Text style={styles.statusText} accessibilityLiveRegion="polite">
+              {syncStatus}
+            </Text>
+          </View>
         ) : null}
       </View>
 
       <Pressable
-        style={[styles.logoutButton, loggingOut && styles.buttonDisabled]}
+        style={({ pressed }) => [
+          styles.logoutButton,
+          pressed && !loggingOut && styles.logoutButtonPressed,
+          loggingOut && styles.buttonDisabled,
+        ]}
         onPress={() => void handleLogout()}
         disabled={loggingOut}
         accessibilityRole="button"
@@ -109,77 +140,130 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f9fafb",
+    backgroundColor: colors.canvas,
   },
   content: {
-    padding: 16,
-    gap: 16,
+    padding: spacing.lg,
+    gap: spacing.lg,
+    paddingBottom: spacing.xxxl,
   },
   card: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
+    padding: spacing.lg,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    gap: 12,
+    borderColor: colors.border,
+    gap: spacing.md,
+    ...shadows.card,
+  },
+  profileHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: radii.pill,
+    backgroundColor: colors.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: colors.primary,
+  },
+  profileIdentity: {
+    flex: 1,
+    gap: 2,
+  },
+  profileSubtitle: {
+    ...typography.caption,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.surfaceMuted,
   },
   sectionLabel: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#111827",
+    ...typography.h3,
   },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: 12,
+    gap: spacing.md,
   },
   label: {
-    fontSize: 14,
-    color: "#6b7280",
+    ...typography.bodyMuted,
   },
   value: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#111827",
+    color: colors.ink,
     flexShrink: 1,
     textAlign: "right",
+  },
+  typePill: {
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: spacing.md - 2,
+    paddingVertical: 3,
+    borderRadius: radii.pill,
+  },
+  typePillText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.primary,
   },
   capitalize: {
     textTransform: "capitalize",
   },
   helperText: {
+    ...typography.bodyMuted,
     fontSize: 13,
-    color: "#4b5563",
-    lineHeight: 18,
+    lineHeight: 19,
   },
   primaryButton: {
-    backgroundColor: "#111827",
-    borderRadius: 8,
-    paddingVertical: 12,
+    backgroundColor: colors.primary,
+    borderRadius: radii.button,
+    paddingVertical: spacing.md + 2,
     alignItems: "center",
     justifyContent: "center",
+    ...shadows.subtle,
+  },
+  primaryButtonPressed: {
+    backgroundColor: colors.primaryDark,
   },
   primaryButtonText: {
-    color: "#ffffff",
+    color: colors.white,
     fontSize: 15,
-    fontWeight: "600",
+    fontWeight: "700",
+  },
+  statusBox: {
+    backgroundColor: colors.canvas,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
   },
   statusText: {
     fontSize: 13,
-    color: "#374151",
+    color: colors.inkMuted,
   },
   logoutButton: {
-    backgroundColor: "#fef2f2",
+    backgroundColor: colors.dangerSoft,
     borderWidth: 1,
-    borderColor: "#fecaca",
-    borderRadius: 10,
-    paddingVertical: 14,
+    borderColor: colors.dangerBorder,
+    borderRadius: radii.button,
+    paddingVertical: spacing.md + 2,
     alignItems: "center",
     justifyContent: "center",
   },
+  logoutButtonPressed: {
+    opacity: 0.88,
+  },
   logoutButtonText: {
-    color: "#b91c1c",
+    color: colors.danger,
     fontSize: 15,
     fontWeight: "700",
   },

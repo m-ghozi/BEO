@@ -12,6 +12,7 @@ import {
 import { useRouter } from "expo-router";
 import type { EventDTO } from "@beo/contracts";
 import { apiFetch, ApiError } from "../../src/services/api";
+import { colors, radii, shadows, spacing, typography } from "../../src/theme/tokens";
 
 function formatDateRange(startAt: string, endAt: string): string {
   const start = new Date(startAt);
@@ -35,6 +36,7 @@ export default function EventsDirectoryScreen() {
   const router = useRouter();
   const [events, setEvents] = useState<EventDTO[]>([]);
   const [query, setQuery] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,7 +83,7 @@ export default function EventsDirectoryScreen() {
   if (loading && !refreshing) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#111827" />
+        <ActivityIndicator size="large" color={colors.primary} />
         <Text style={styles.loadingText}>Loading events...</Text>
       </View>
     );
@@ -91,11 +93,16 @@ export default function EventsDirectoryScreen() {
     <View style={styles.container}>
       <View style={styles.searchContainer}>
         <TextInput
-          style={styles.searchInput}
+          style={[
+            styles.searchInput,
+            searchFocused && styles.searchInputFocused,
+          ]}
           value={query}
           onChangeText={setQuery}
+          onFocus={() => setSearchFocused(true)}
+          onBlur={() => setSearchFocused(false)}
           placeholder="Search by title or venue..."
-          placeholderTextColor="#9ca3af"
+          placeholderTextColor={colors.inkSubtle}
           autoCapitalize="none"
           autoCorrect={false}
           clearButtonMode="while-editing"
@@ -107,7 +114,10 @@ export default function EventsDirectoryScreen() {
         <View style={styles.errorBanner} accessibilityRole="alert">
           <Text style={styles.errorText}>{error}</Text>
           <Pressable
-            style={styles.retryButton}
+            style={({ pressed }) => [
+              styles.retryButton,
+              pressed && styles.buttonPressed,
+            ]}
             onPress={() => void fetchEvents(false)}
             accessibilityRole="button"
           >
@@ -126,7 +136,7 @@ export default function EventsDirectoryScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={() => void fetchEvents(true)}
-            tintColor="#111827"
+            tintColor={colors.primary}
           />
         }
         renderItem={({ item }) => (
@@ -145,13 +155,16 @@ export default function EventsDirectoryScreen() {
               </View>
             </View>
             <Text style={styles.cardVenue}>{item.venue}</Text>
-            <Text style={styles.cardDate}>
-              {formatDateRange(item.start_at, item.end_at)}
-            </Text>
+            <View style={styles.cardFooter}>
+              <Text style={styles.cardDate}>
+                {formatDateRange(item.start_at, item.end_at)}
+              </Text>
+              <Text style={styles.cardLink}>Details →</Text>
+            </View>
           </Pressable>
         )}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
+          <View style={styles.emptyCard}>
             <Text style={styles.emptyTitle}>No events found</Text>
             <Text style={styles.emptySubtitle}>
               {query.trim()
@@ -168,128 +181,159 @@ export default function EventsDirectoryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f9fafb",
+    backgroundColor: colors.canvas,
   },
   centerContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#f9fafb",
-    padding: 24,
+    backgroundColor: colors.canvas,
+    padding: spacing.xxl,
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 15,
-    color: "#4b5563",
+    marginTop: spacing.md,
+    ...typography.bodyMuted,
   },
   searchContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-    backgroundColor: "#ffffff",
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    borderBottomColor: colors.border,
   },
   searchInput: {
-    backgroundColor: "#f3f4f6",
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    backgroundColor: colors.canvas,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.input,
+    paddingHorizontal: spacing.md + 2,
+    paddingVertical: spacing.md - 2,
     fontSize: 15,
-    color: "#111827",
+    color: colors.ink,
+  },
+  searchInputFocused: {
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
   },
   errorBanner: {
-    backgroundColor: "#fef2f2",
-    borderBottomWidth: 1,
-    borderBottomColor: "#fecaca",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    margin: spacing.lg,
+    marginBottom: 0,
+    backgroundColor: colors.dangerSoft,
+    borderWidth: 1,
+    borderColor: colors.dangerBorder,
+    borderRadius: radii.input,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
+    gap: spacing.md,
   },
   errorText: {
     flex: 1,
-    color: "#991b1b",
-    fontSize: 14,
-  },
-  retryButton: {
-    backgroundColor: "#991b1b",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  retryButtonText: {
-    color: "#ffffff",
+    color: colors.danger,
     fontSize: 13,
     fontWeight: "600",
   },
+  retryButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radii.sm,
+  },
+  retryButtonText: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  buttonPressed: {
+    opacity: 0.88,
+  },
   listContent: {
-    padding: 16,
-    gap: 12,
+    padding: spacing.lg,
+    gap: spacing.md,
   },
   emptyListContent: {
     flexGrow: 1,
     justifyContent: "center",
-    padding: 24,
+    padding: spacing.xxl,
   },
   card: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
+    padding: spacing.lg,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    gap: 6,
+    borderColor: colors.border,
+    gap: spacing.xs + 2,
+    ...shadows.card,
   },
   cardPressed: {
-    opacity: 0.85,
+    opacity: 0.92,
+    transform: [{ scale: 0.99 }],
   },
   cardHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: 8,
+    gap: spacing.sm,
   },
   cardTitle: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "700",
-    color: "#111827",
+    color: colors.ink,
   },
   typeBadge: {
-    backgroundColor: "#eef2ff",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: spacing.md - 2,
+    paddingVertical: spacing.xs,
+    borderRadius: radii.pill,
   },
   typeBadgeText: {
     fontSize: 12,
-    fontWeight: "600",
-    color: "#3730a3",
+    fontWeight: "700",
+    color: colors.primary,
     textTransform: "capitalize",
   },
   cardVenue: {
     fontSize: 14,
-    color: "#374151",
-    fontWeight: "500",
+    color: colors.inkMuted,
+    fontWeight: "600",
+  },
+  cardFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: spacing.xs,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.surfaceMuted,
   },
   cardDate: {
-    fontSize: 13,
-    color: "#6b7280",
+    ...typography.caption,
+    flex: 1,
   },
-  emptyContainer: {
+  cardLink: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.primary,
+  },
+  emptyCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xxl,
     alignItems: "center",
-    gap: 8,
+    gap: spacing.sm,
+    ...shadows.card,
   },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111827",
+    ...typography.h2,
   },
   emptySubtitle: {
-    fontSize: 14,
-    color: "#6b7280",
+    ...typography.bodyMuted,
     textAlign: "center",
   },
 });

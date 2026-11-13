@@ -16,6 +16,7 @@ import {
   saveEventDetailCache,
   type EventPostDTO,
 } from "../../src/services/offlineCache";
+import { colors, radii, shadows, spacing, typography } from "../../src/theme/tokens";
 
 function formatDateTime(iso: string): string {
   const date = new Date(iso);
@@ -132,7 +133,7 @@ export default function EventDetailScreen() {
   if (loading && !refreshing) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#111827" />
+        <ActivityIndicator size="large" color={colors.primary} />
         <Text style={styles.loadingText}>Loading event details...</Text>
       </View>
     );
@@ -141,15 +142,20 @@ export default function EventDetailScreen() {
   if (error && !event) {
     return (
       <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-        <Pressable
-          style={styles.retryButton}
-          onPress={() => void fetchEventDetail(false)}
-          accessibilityRole="button"
-          accessibilityLabel="Retry"
-        >
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </Pressable>
+        <View style={styles.errorCard}>
+          <Text style={styles.errorText}>{error}</Text>
+          <Pressable
+            style={({ pressed }) => [
+              styles.retryButton,
+              pressed && styles.buttonPressed,
+            ]}
+            onPress={() => void fetchEventDetail(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Retry"
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
@@ -162,7 +168,7 @@ export default function EventDetailScreen() {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={() => void fetchEventDetail(true)}
-          tintColor="#111827"
+          tintColor={colors.primary}
         />
       }
     >
@@ -198,13 +204,20 @@ export default function EventDetailScreen() {
           </View>
         ) : (
           sessions.map((session) => (
-            <View key={session.id} style={styles.itemCard}>
-              <Text style={styles.itemTime}>
-                {formatSessionTimeRange(session.start_at, session.end_at)} ·{" "}
-                {session.room_or_stage}
-              </Text>
-              <Text style={styles.itemTitle}>{session.title}</Text>
-              <Text style={styles.itemSubtitle}>Speaker: {session.speaker_name}</Text>
+            <View key={session.id} style={styles.timelineCard}>
+              <View style={styles.timelineAccent} />
+              <View style={styles.timelineContent}>
+                <View style={styles.timePill}>
+                  <Text style={styles.itemTime}>
+                    {formatSessionTimeRange(session.start_at, session.end_at)} ·{" "}
+                    {session.room_or_stage}
+                  </Text>
+                </View>
+                <Text style={styles.itemTitle}>{session.title}</Text>
+                <Text style={styles.itemSubtitle}>
+                  Speaker: {session.speaker_name}
+                </Text>
+              </View>
             </View>
           ))
         )}
@@ -218,10 +231,10 @@ export default function EventDetailScreen() {
           </View>
         ) : (
           posts.map((post) => (
-            <View key={post.id} style={styles.itemCard}>
+            <View key={post.id} style={styles.postCard}>
               <Text style={styles.itemTitle}>{post.title}</Text>
               <Text style={styles.postBody}>{post.body}</Text>
-              <Text style={styles.itemTime}>
+              <Text style={styles.postTime}>
                 {formatDateTime(post.published_at)}
               </Text>
             </View>
@@ -235,136 +248,179 @@ export default function EventDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f9fafb",
+    backgroundColor: colors.canvas,
   },
   content: {
-    padding: 16,
-    gap: 16,
+    padding: spacing.lg,
+    gap: spacing.lg,
+    paddingBottom: spacing.xxxl,
   },
   centerContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#f9fafb",
-    padding: 24,
-    gap: 12,
+    backgroundColor: colors.canvas,
+    padding: spacing.xxl,
+    gap: spacing.md,
   },
   loadingText: {
-    fontSize: 15,
-    color: "#4b5563",
+    ...typography.bodyMuted,
+  },
+  errorCard: {
+    width: "100%",
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xxl,
+    alignItems: "center",
+    gap: spacing.lg,
+    ...shadows.card,
   },
   errorText: {
-    color: "#991b1b",
+    color: colors.danger,
     fontSize: 15,
+    fontWeight: "600",
     textAlign: "center",
   },
   retryButton: {
-    backgroundColor: "#111827",
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 8,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md - 2,
+    borderRadius: radii.button,
   },
   retryButtonText: {
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  offlineBanner: {
-    backgroundColor: "#fffbeb",
-    borderWidth: 1,
-    borderColor: "#fde68a",
-    borderRadius: 10,
-    padding: 12,
-    gap: 4,
-  },
-  offlineTitle: {
+    color: colors.white,
     fontSize: 14,
     fontWeight: "700",
-    color: "#92400e",
+  },
+  buttonPressed: {
+    opacity: 0.88,
+  },
+  offlineBanner: {
+    backgroundColor: colors.warningSoft,
+    borderWidth: 1,
+    borderColor: colors.warningBorder,
+    borderRadius: radii.input,
+    padding: spacing.md,
+    gap: 2,
+  },
+  offlineTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.warning,
   },
   offlineSubtitle: {
     fontSize: 12,
-    color: "#78350f",
+    color: colors.inkMuted,
   },
   headerCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
+    padding: spacing.xl,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    gap: 6,
+    borderColor: colors.border,
+    gap: spacing.sm,
+    ...shadows.card,
   },
   badge: {
     alignSelf: "flex-start",
-    backgroundColor: "#eef2ff",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: spacing.md - 2,
+    paddingVertical: spacing.xs,
+    borderRadius: radii.pill,
   },
   badgeText: {
     fontSize: 12,
-    fontWeight: "600",
-    color: "#3730a3",
+    fontWeight: "700",
+    color: colors.primary,
     textTransform: "capitalize",
   },
   title: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#111827",
+    ...typography.h1,
   },
   metaText: {
     fontSize: 15,
-    fontWeight: "500",
-    color: "#374151",
+    fontWeight: "600",
+    color: colors.inkMuted,
   },
   metaSubtext: {
-    fontSize: 13,
-    color: "#6b7280",
+    ...typography.caption,
   },
   section: {
-    gap: 10,
+    gap: spacing.md - 2,
   },
   sectionTitle: {
+    ...typography.h3,
     fontSize: 17,
-    fontWeight: "700",
-    color: "#111827",
   },
   emptyCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 10,
-    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
+    padding: spacing.lg,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: colors.border,
+    ...shadows.subtle,
   },
   emptyText: {
-    fontSize: 14,
-    color: "#6b7280",
+    ...typography.bodyMuted,
   },
-  itemCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 10,
-    padding: 14,
+  timelineCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    gap: 4,
+    borderColor: colors.border,
+    flexDirection: "row",
+    overflow: "hidden",
+    ...shadows.subtle,
+  },
+  timelineAccent: {
+    width: 4,
+    backgroundColor: colors.primary,
+  },
+  timelineContent: {
+    flex: 1,
+    padding: spacing.md + 2,
+    gap: spacing.xs + 2,
+  },
+  timePill: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.primarySoft,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
   },
   itemTime: {
     fontSize: 12,
-    color: "#6b7280",
-    fontWeight: "500",
+    color: colors.primary,
+    fontWeight: "700",
   },
   itemTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#111827",
+    color: colors.ink,
   },
   itemSubtitle: {
     fontSize: 13,
-    color: "#374151",
+    color: colors.inkMuted,
+    fontWeight: "500",
+  },
+  postCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.xs + 2,
+    ...shadows.subtle,
   },
   postBody: {
+    ...typography.body,
     fontSize: 14,
-    color: "#374151",
-    lineHeight: 20,
+    color: colors.inkMuted,
+  },
+  postTime: {
+    ...typography.caption,
+    marginTop: spacing.xs,
   },
 });

@@ -4,6 +4,7 @@ import * as Notifications from "expo-notifications";
 import { Slot, useRouter, useSegments } from "expo-router";
 import { AuthProvider, useAuth } from "../src/context/AuthContext";
 import { resolveNotificationRoute } from "../src/services/notificationRouting";
+import { colors } from "../src/theme/tokens";
 
 function AuthGuard() {
   const { token, isLoading } = useAuth();
@@ -61,7 +62,7 @@ function AuthGuard() {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#111827" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -85,7 +86,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#ffffff",
+    backgroundColor: colors.canvas,
   },
 });
 

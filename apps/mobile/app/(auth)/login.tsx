@@ -4,6 +4,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -13,6 +14,7 @@ import { Link } from "expo-router";
 import { LoginSchema } from "@beo/contracts";
 import { useAuth } from "../../src/context/AuthContext";
 import { ApiError } from "../../src/services/api";
+import { colors, radii, shadows, spacing, typography } from "../../src/theme/tokens";
 
 /**
  * Sign-in screen with inline Zod validation and AuthContext integration.
@@ -21,6 +23,9 @@ export default function LoginScreen() {
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [focusedField, setFocusedField] = useState<"email" | "password" | null>(
+    null
+  );
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -53,59 +58,87 @@ export default function LoginScreen() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View style={styles.card}>
-        <Text style={styles.title}>Welcome back</Text>
-        <Text style={styles.subtitle}>Sign in to view your tickets</Text>
-
-        {error ? (
-          <View style={styles.errorBanner} accessibilityRole="alert">
-            <Text style={styles.errorText}>{error}</Text>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.brandHeader}>
+          <View style={styles.brandBadge}>
+            <Text style={styles.brandBadgeText}>BEO</Text>
           </View>
-        ) : null}
-
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          style={styles.input}
-          value={email}
-          onChangeText={setEmail}
-          placeholder="you@example.com"
-          autoCapitalize="none"
-          autoComplete="email"
-          keyboardType="email-address"
-          editable={!submitting}
-        />
-
-        <Text style={styles.label}>Password</Text>
-        <TextInput
-          style={styles.input}
-          value={password}
-          onChangeText={setPassword}
-          placeholder="Enter your password"
-          secureTextEntry
-          autoComplete="password"
-          editable={!submitting}
-        />
-
-        <Pressable
-          style={[styles.button, submitting && styles.buttonDisabled]}
-          onPress={() => void handleSubmit()}
-          disabled={submitting}
-          accessibilityRole="button"
-        >
-          {submitting ? (
-            <ActivityIndicator color="#ffffff" />
-          ) : (
-            <Text style={styles.buttonText}>Sign In</Text>
-          )}
-        </Pressable>
-
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Don&apos;t have an account? </Text>
-          <Link href="/(auth)/register" style={styles.link}>
-            Register
-          </Link>
+          <Text style={styles.brandTagline}>EVENT PASS WALLET</Text>
         </View>
-      </View>
+
+        <View style={styles.card}>
+          <Text style={styles.title}>Welcome back</Text>
+          <Text style={styles.subtitle}>Sign in to view your tickets</Text>
+
+          {error ? (
+            <View style={styles.errorBanner} accessibilityRole="alert">
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
+
+          <Text style={styles.label}>Email</Text>
+          <TextInput
+            style={[
+              styles.input,
+              focusedField === "email" && styles.inputFocused,
+            ]}
+            value={email}
+            onChangeText={setEmail}
+            onFocus={() => setFocusedField("email")}
+            onBlur={() => setFocusedField(null)}
+            placeholder="you@example.com"
+            placeholderTextColor={colors.inkSubtle}
+            autoCapitalize="none"
+            autoComplete="email"
+            keyboardType="email-address"
+            editable={!submitting}
+          />
+
+          <Text style={styles.label}>Password</Text>
+          <TextInput
+            style={[
+              styles.input,
+              focusedField === "password" && styles.inputFocused,
+            ]}
+            value={password}
+            onChangeText={setPassword}
+            onFocus={() => setFocusedField("password")}
+            onBlur={() => setFocusedField(null)}
+            placeholder="Enter your password"
+            placeholderTextColor={colors.inkSubtle}
+            secureTextEntry
+            autoComplete="password"
+            editable={!submitting}
+          />
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.button,
+              pressed && !submitting && styles.buttonPressed,
+              submitting && styles.buttonDisabled,
+            ]}
+            onPress={() => void handleSubmit()}
+            disabled={submitting}
+            accessibilityRole="button"
+          >
+            {submitting ? (
+              <ActivityIndicator color={colors.white} />
+            ) : (
+              <Text style={styles.buttonText}>Sign In</Text>
+            )}
+          </Pressable>
+
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>Don&apos;t have an account? </Text>
+            <Link href="/(auth)/register" style={styles.link}>
+              Register
+            </Link>
+          </View>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -113,84 +146,114 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f9fafb",
+    backgroundColor: colors.canvas,
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: "center",
-    padding: 20,
+    padding: spacing.xl,
+  },
+  brandHeader: {
+    alignItems: "center",
+    marginBottom: spacing.xl,
+    gap: spacing.sm,
+  },
+  brandBadge: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radii.pill,
+    ...shadows.subtle,
+  },
+  brandBadgeText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: "800",
+    letterSpacing: 1.5,
+  },
+  brandTagline: {
+    ...typography.eyebrow,
+    color: colors.inkSubtle,
   },
   card: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 24,
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
+    padding: spacing.xxl,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: colors.border,
+    ...shadows.elevated,
   },
   title: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 4,
+    ...typography.h1,
+    marginBottom: spacing.xs,
   },
   subtitle: {
-    fontSize: 14,
-    color: "#6b7280",
-    marginBottom: 20,
+    ...typography.bodyMuted,
+    marginBottom: spacing.xl,
   },
   errorBanner: {
-    backgroundColor: "#fef2f2",
-    borderColor: "#fecaca",
+    backgroundColor: colors.dangerSoft,
+    borderColor: colors.dangerBorder,
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
+    borderRadius: radii.input,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
   },
   errorText: {
-    color: "#b91c1c",
-    fontSize: 14,
+    color: colors.danger,
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 18,
   },
   label: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#374151",
-    marginBottom: 6,
+    ...typography.label,
+    marginBottom: spacing.xs + 2,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    color: "#111827",
-    backgroundColor: "#ffffff",
-    marginBottom: 16,
+    borderColor: colors.border,
+    borderRadius: radii.input,
+    paddingHorizontal: spacing.md + 2,
+    paddingVertical: spacing.md,
+    fontSize: 15,
+    color: colors.ink,
+    backgroundColor: colors.canvas,
+    marginBottom: spacing.lg,
+  },
+  inputFocused: {
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
   },
   button: {
-    backgroundColor: "#111827",
-    borderRadius: 8,
-    paddingVertical: 14,
+    backgroundColor: colors.primary,
+    borderRadius: radii.button,
+    paddingVertical: spacing.md + 2,
     alignItems: "center",
-    marginTop: 4,
+    marginTop: spacing.xs,
+    ...shadows.subtle,
+  },
+  buttonPressed: {
+    backgroundColor: colors.primaryDark,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
-    color: "#ffffff",
+    color: colors.white,
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   footer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 20,
+    marginTop: spacing.xl,
   },
   footerText: {
-    fontSize: 14,
-    color: "#6b7280",
+    ...typography.bodyMuted,
   },
   link: {
     fontSize: 14,
-    fontWeight: "600",
-    color: "#111827",
+    fontWeight: "700",
+    color: colors.primary,
   },
 });
