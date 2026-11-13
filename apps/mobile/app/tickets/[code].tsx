@@ -10,7 +10,11 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import QRCode from "react-native-qrcode-svg";
 import type { TicketDTO } from "@beo/contracts";
 import { useAuth } from "../../src/context/AuthContext";
-import { loadTicketsCache } from "../../src/services/offlineCache";
+import { apiFetch } from "../../src/services/api";
+import {
+  loadTicketsCache,
+  saveTicketsCache,
+} from "../../src/services/offlineCache";
 import { getTicketStatusMeta } from "../../src/features/tickets/ticketStatus";
 
 /**
@@ -32,8 +36,21 @@ export default function TicketQRScreen() {
           return;
         }
         const cached = await loadTicketsCache(user.id);
-        const match =
+        let match =
           cached?.tickets.find((item) => item.ticket_code === code) ?? null;
+
+        if (!match) {
+          try {
+            const data = await apiFetch<TicketDTO[]>("/v1/me/tickets");
+            const freshTickets = Array.isArray(data) ? data : [];
+            await saveTicketsCache(user.id, freshTickets);
+            match =
+              freshTickets.find((item) => item.ticket_code === code) ?? null;
+          } catch {
+            // Keep null so offline not-found fallback renders gracefully
+          }
+        }
+
         if (active) {
           setTicket(match);
         }
@@ -79,7 +96,8 @@ export default function TicketQRScreen() {
   }
 
   const statusMeta = getTicketStatusMeta(ticket);
-  const qrValue = ticket.qr_signature || ticket.ticket_code;
+  const canShowQR =
+    ticket.status !== "pending" && Boolean(ticket.qr_signature);
 
   return (
     <View style={styles.container}>
@@ -92,6 +110,8 @@ export default function TicketQRScreen() {
                 ? styles.badgeCheckedIn
                 : statusMeta.badgeStyle === "cancelled"
                 ? styles.badgeCancelled
+                : statusMeta.badgeStyle === "pending"
+                ? styles.badgePending
                 : styles.badgeValid,
             ]}
           >
@@ -102,6 +122,8 @@ export default function TicketQRScreen() {
                   ? styles.badgeTextCheckedIn
                   : statusMeta.badgeStyle === "cancelled"
                   ? styles.badgeTextCancelled
+                  : statusMeta.badgeStyle === "pending"
+                  ? styles.badgeTextPending
                   : styles.badgeTextValid,
               ]}
             >
@@ -112,8 +134,23 @@ export default function TicketQRScreen() {
         </View>
 
         <View style={styles.qrWrapper}>
-          <QRCode value={qrValue} size={220} testID="ticket-qr-code" />
-          <Text style={styles.qrHint}>Present this QR code at the venue gate</Text>
+          {canShowQR ? (
+            <>
+              <QRCode
+                value={ticket.qr_signature}
+                size={220}
+                testID="ticket-qr-code"
+              />
+              <Text style={styles.qrHint}>
+                Present this QR code at the venue gate
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.pendingQrMessage}>
+              Payment pending — QR code will be available after payment is
+              confirmed
+            </Text>
+          )}
         </View>
 
         <View style={styles.detailsSection}>
@@ -176,6 +213,9 @@ const styles = StyleSheet.create({
   badgeCancelled: {
     backgroundColor: "#fef2f2",
   },
+  badgePending: {
+    backgroundColor: "#fffbeb",
+  },
   badgeText: {
     fontSize: 12,
     fontWeight: "600",
@@ -188,6 +228,9 @@ const styles = StyleSheet.create({
   },
   badgeTextCancelled: {
     color: "#b91c1c",
+  },
+  badgeTextPending: {
+    color: "#b45309",
   },
   ticketCode: {
     fontSize: 14,
@@ -208,6 +251,13 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 12,
     color: "#6b7280",
+  },
+  pendingQrMessage: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#b45309",
+    textAlign: "center",
+    paddingVertical: 24,
   },
   detailsSection: {
     marginBottom: 20,

@@ -267,4 +267,48 @@ describe("CheckinPage", () => {
       expect(stopTrackMock).toHaveBeenCalledTimes(1);
     });
   });
+
+  it("submits manual ticket code with scan_mode: 'manual' and displays success banner", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ticket_id: "tkt-manual-01",
+          ticket_code: "BEO-MAN-999",
+          attendee_name: "Charlie Manual",
+          attendee_email: "charlie@example.com",
+          checked_in_at: "2026-11-13T05:00:00Z",
+          result: "success",
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }
+      )
+    );
+
+    renderCheckinPage("evt-checkin-01");
+
+    const manualInput = screen.getByLabelText(/Manual Ticket Code/i);
+    fireEvent.change(manualInput, { target: { value: "BEO-MAN-999" } });
+    fireEvent.submit(manualInput.closest("form")!);
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toBeInTheDocument();
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining("/v1/events/evt-checkin-01/checkin"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          qr_payload: "BEO-MAN-999",
+          scan_mode: "manual",
+        }),
+      })
+    );
+
+    const banner = screen.getByRole("status");
+    expect(within(banner).getByText(/Charlie Manual/i)).toBeInTheDocument();
+    expect(within(banner).getByText(/BEO-MAN-999/i)).toBeInTheDocument();
+  });
 });

@@ -43,6 +43,7 @@ export function CheckoutForm({ event, ticketTypes, onSuccess }: CheckoutFormProp
   const [proofUrl, setProofUrl] = useState<string>("");
   const [proofSubmitted, setProofSubmitted] = useState<boolean>(false);
   const [proofSubmitting, setProofSubmitting] = useState<boolean>(false);
+  const [copiedTicketId, setCopiedTicketId] = useState<string | null>(null);
 
   const selectedTicket = ticketTypes.find((t) => t.id === selectedTicketTypeId) || ticketTypes[0];
   const isFree = selectedTicket ? selectedTicket.price === 0 : false;
@@ -354,12 +355,57 @@ export function CheckoutForm({ event, ticketTypes, onSuccess }: CheckoutFormProp
             <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
               Issued Tickets ({confirmedOrder.tickets.length})
             </div>
-            {confirmedOrder.tickets.map((t) => (
-              <div key={t.id} className="flex justify-between py-1 text-sm border-b last:border-0 border-gray-100">
-                <span className="font-medium text-gray-900">{t.attendee_name}</span>
-                <span className="font-mono text-indigo-600 font-semibold">{t.ticket_code}</span>
-              </div>
-            ))}
+            {confirmedOrder.tickets.map((t) => {
+              const claimPath = t.claim_token
+                ? `/claim?token=${encodeURIComponent(t.claim_token)}`
+                : null;
+              return (
+                <div
+                  key={t.id}
+                  className="py-2 text-sm border-b last:border-0 border-gray-100 space-y-1"
+                >
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium text-gray-900">{t.attendee_name}</span>
+                    <span className="font-mono text-indigo-600 font-semibold">{t.ticket_code}</span>
+                  </div>
+                  {t.claim_token && claimPath && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-600">
+                      <span className="truncate">
+                        Claim Token:{" "}
+                        <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-gray-800">
+                          {t.claim_token}
+                        </code>
+                      </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Link
+                          to={claimPath}
+                          className="font-semibold text-indigo-600 hover:text-indigo-500 underline"
+                        >
+                          Claim Ticket
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const fullUrl =
+                              typeof window !== "undefined" && window.location?.origin
+                                ? `${window.location.origin}${claimPath}`
+                                : claimPath;
+                            void navigator.clipboard?.writeText(fullUrl);
+                            setCopiedTicketId(t.id);
+                            setTimeout(() => {
+                              setCopiedTicketId((prev) => (prev === t.id ? null : prev));
+                            }, 2000);
+                          }}
+                          className="rounded border border-gray-300 bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-gray-100"
+                        >
+                          {copiedTicketId === t.id ? "Copied" : "Copy Claim Link"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
         <div className="mt-6 flex justify-center gap-4">

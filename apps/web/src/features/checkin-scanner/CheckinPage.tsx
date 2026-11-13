@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   XCircle,
   ScanBarcode,
+  Keyboard,
 } from "lucide-react";
 import { CheckinScanSchema, type CheckinResultDTO } from "@beo/contracts";
 import { apiFetch, ApiError } from "../../lib/api";
@@ -25,7 +26,7 @@ type ScanStatus = "success" | "duplicate" | "invalid";
 interface ScanLogEntry {
   id: string;
   status: ScanStatus;
-  scanMode: "hid" | "webcam";
+  scanMode: "hid" | "webcam" | "manual";
   qrPayload: string;
   ticketCode?: string;
   attendeeName?: string;
@@ -42,6 +43,7 @@ export function CheckinPage() {
   const { user } = useAuth();
 
   const [hidValue, setHidValue] = useState("");
+  const [manualTicketCode, setManualTicketCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [webcamEnabled, setWebcamEnabled] = useState(false);
   const [lastResult, setLastResult] = useState<ScanLogEntry | null>(null);
@@ -64,17 +66,27 @@ export function CheckinPage() {
   }, []);
 
   const submitScan = useCallback(
-    async (rawPayload: string, scanMode: "hid" | "webcam") => {
+    async (rawPayload: string, scanMode: "hid" | "webcam" | "manual") => {
       if (!eventId || isSubmittingRef.current) {
         return;
       }
 
-      const parsed = CheckinScanSchema.safeParse({
-        qr_payload: rawPayload,
-        scan_mode: scanMode,
-      });
-      if (!parsed.success) {
-        return;
+      let requestPayload: { qr_payload: string; scan_mode: "hid" | "webcam" | "manual" };
+      if (scanMode === "manual") {
+        const trimmed = rawPayload.trim();
+        if (!trimmed) {
+          return;
+        }
+        requestPayload = { qr_payload: trimmed, scan_mode: "manual" };
+      } else {
+        const parsed = CheckinScanSchema.safeParse({
+          qr_payload: rawPayload,
+          scan_mode: scanMode,
+        });
+        if (!parsed.success) {
+          return;
+        }
+        requestPayload = parsed.data;
       }
 
       if (scanMode === "webcam") {
@@ -82,13 +94,13 @@ export function CheckinPage() {
         const prev = lastWebcamScanRef.current;
         if (
           prev &&
-          prev.payload === parsed.data.qr_payload &&
+          prev.payload === requestPayload.qr_payload &&
           now - prev.at < WEBCAM_COOLDOWN_MS
         ) {
           return;
         }
         lastWebcamScanRef.current = {
-          payload: parsed.data.qr_payload,
+          payload: requestPayload.qr_payload,
           at: now,
         };
       }
@@ -104,7 +116,7 @@ export function CheckinPage() {
           `/v1/events/${eventId}/checkin`,
           {
             method: "POST",
-            body: JSON.stringify(parsed.data),
+            body: JSON.stringify(requestPayload),
           }
         );
 
@@ -119,7 +131,7 @@ export function CheckinPage() {
           id: entryId,
           status: resultStatus,
           scanMode,
-          qrPayload: parsed.data.qr_payload,
+          qrPayload: requestPayload.qr_payload,
           ticketCode: res.ticket_code,
           attendeeName: res.attendee_name,
           attendeeEmail: res.attendee_email,
@@ -155,7 +167,7 @@ export function CheckinPage() {
           id: entryId,
           status,
           scanMode,
-          qrPayload: parsed.data.qr_payload,
+          qrPayload: requestPayload.qr_payload,
           message,
           timestamp: nowIso,
         });
@@ -165,6 +177,8 @@ export function CheckinPage() {
         if (scanMode === "hid") {
           setHidValue("");
           hidInputRef.current?.focus();
+        } else if (scanMode === "manual") {
+          setManualTicketCode("");
         }
       }
     },
@@ -194,6 +208,12 @@ export function CheckinPage() {
     if (e.key === "Enter" && isSubmittingRef.current) {
       e.preventDefault();
     }
+  };
+
+  const handleManualSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (isSubmittingRef.current) return;
+    void submitScan(manualTicketCode, "manual");
   };
 
   return (
@@ -388,6 +408,54 @@ export function CheckinPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Manual Ticket Code Check-in */}
+      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-xs">
+        <div className="flex items-center gap-2">
+          <Keyboard className="h-5 w-5 text-indigo-600" />
+          <h2 className="text-lg font-semibold text-gray-900">
+            Manual Ticket Code Check-in
+          </h2>
+        </div>
+        <p className="mt-1 text-sm text-gray-600">
+          Enter a participant&apos;s raw ticket code (e.g.{" "}
+          <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs">
+            BEO-XXXX
+          </code>
+          ) when their screen cannot be scanned.
+        </p>
+
+        <form
+          onSubmit={handleManualSubmit}
+          className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end"
+        >
+          <div className="flex-1">
+            <label
+              htmlFor="manual-ticket-code-input"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Manual Ticket Code
+            </label>
+            <input
+              id="manual-ticket-code-input"
+              type="text"
+              autoComplete="off"
+              value={manualTicketCode}
+              onChange={(e) => setManualTicketCode(e.target.value)}
+              placeholder="e.g. BEO-XXXX"
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2.5 font-mono text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={isSubmitting || !manualTicketCode.trim()}
+            className="rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
+          >
+            {isSubmitting ? "Checking In..." : "Manual Check-In"}
+          </button>
+        </form>
       </div>
 
       {/* Recent Scan Log */}

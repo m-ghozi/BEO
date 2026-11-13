@@ -6,6 +6,7 @@ import { LoginPage } from "./features/auth/LoginPage";
 import { RegisterPage } from "./features/auth/RegisterPage";
 import { EventsListPage } from "./features/public-events/EventsListPage";
 import { EventDetailPage } from "./features/public-events/EventDetailPage";
+import { OrderReturnPage } from "./features/public-events/OrderReturnPage";
 import { MyTicketsPage } from "./features/tickets/MyTicketsPage";
 import { ClaimTicketPage } from "./features/tickets/ClaimTicketPage";
 import { OrganizerDashboardPage } from "./features/organizer-studio/OrganizerDashboardPage";
@@ -31,6 +32,7 @@ export function AppRoutes() {
       <Route path="/" element={<Layout />}>
         <Route index element={<EventsListPage />} />
         <Route path="events/:slug" element={<EventDetailPage />} />
+        <Route path="orders/return" element={<OrderReturnPage />} />
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />
 

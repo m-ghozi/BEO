@@ -6,6 +6,7 @@ import MyTicketsScreen from "../../../app/(tabs)/index";
 import TicketQRScreen from "../../../app/tickets/[code]";
 import * as api from "../../services/api";
 import * as offlineCache from "../../services/offlineCache";
+import { getTicketStatusMeta } from "./ticketStatus";
 import { useAuth } from "../../context/AuthContext";
 
 jest.mock("../../context/AuthContext", () => ({
@@ -145,5 +146,69 @@ describe("MyTicketsScreen & TicketQRScreen", () => {
     expect(getByText("Alice")).toBeTruthy();
     expect(getByText("alice@example.com")).toBeTruthy();
     expect(getByText("Valid")).toBeTruthy();
+  });
+
+  it("derives Pending Payment status for pending tickets", () => {
+    expect(
+      getTicketStatusMeta({ status: "pending", checked_in_at: null })
+    ).toEqual({
+      label: "Pending Payment",
+      badgeStyle: "pending",
+    });
+  });
+
+  it("hides QR code and shows pending message when ticket status is pending", async () => {
+    const pendingTicket: TicketDTO = {
+      id: "t-pending",
+      ticket_type_id: "tt-1",
+      event_id: "ev-1",
+      attendee_name: "Charlie",
+      attendee_email: "charlie@example.com",
+      ticket_code: "BEO-PEND",
+      qr_signature: "BEO-PEND|ev-1|pending-sig",
+      status: "pending",
+      checked_in_at: null,
+      created_at: "2026-11-13T01:10:00Z",
+    };
+
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ code: "BEO-PEND" });
+    jest.spyOn(offlineCache, "loadTicketsCache").mockResolvedValueOnce({
+      tickets: [pendingTicket],
+      updatedAt: "2026-11-13T08:00:00.000Z",
+    });
+
+    const { getByText, queryByTestId } = render(<TicketQRScreen />);
+
+    await waitFor(() => {
+      expect(getByText("Pending Payment")).toBeTruthy();
+    });
+
+    expect(queryByTestId("ticket-qr-code")).toBeNull();
+    expect(
+      getByText(
+        "Payment pending — QR code will be available after payment is confirmed"
+      )
+    ).toBeTruthy();
+  });
+
+  it("falls back to GET /v1/me/tickets and updates cache when ticket code is missing from offline cache", async () => {
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ code: "BEO-1234" });
+    jest.spyOn(offlineCache, "loadTicketsCache").mockResolvedValueOnce(null);
+    const apiSpy = jest
+      .spyOn(api, "apiFetch")
+      .mockResolvedValueOnce(sampleTickets);
+    const saveSpy = jest
+      .spyOn(offlineCache, "saveTicketsCache")
+      .mockResolvedValueOnce(undefined);
+
+    const { getByTestId, getByText } = render(<TicketQRScreen />);
+
+    await waitFor(() => {
+      expect(getByTestId("ticket-qr-code")).toBeTruthy();
+    });
+
+    expect(apiSpy).toHaveBeenCalledWith("/v1/me/tickets");
+    expect(saveSpy).toHaveBeenCalledWith("user-1", sampleTickets);
+    expect(getByText("BEO-1234")).toBeTruthy();
   });
 });

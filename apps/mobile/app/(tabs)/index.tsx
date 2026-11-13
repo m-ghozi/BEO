@@ -159,6 +159,8 @@ export default function MyTicketsScreen() {
                       ? styles.badgeCheckedIn
                       : statusMeta.badgeStyle === "cancelled"
                       ? styles.badgeCancelled
+                      : statusMeta.badgeStyle === "pending"
+                      ? styles.badgePending
                       : styles.badgeValid,
                   ]}
                 >
@@ -169,6 +171,8 @@ export default function MyTicketsScreen() {
                         ? styles.badgeTextCheckedIn
                         : statusMeta.badgeStyle === "cancelled"
                         ? styles.badgeTextCancelled
+                        : statusMeta.badgeStyle === "pending"
+                        ? styles.badgeTextPending
                         : styles.badgeTextValid,
                     ]}
                   >
@@ -318,6 +322,9 @@ const styles = StyleSheet.create({
   badgeCancelled: {
     backgroundColor: "#fef2f2",
   },
+  badgePending: {
+    backgroundColor: "#fffbeb",
+  },
   badgeText: {
     fontSize: 12,
     fontWeight: "600",
@@ -330,6 +337,9 @@ const styles = StyleSheet.create({
   },
   badgeTextCancelled: {
     color: "#b91c1c",
+  },
+  badgeTextPending: {
+    color: "#b45309",
   },
   ticketCode: {
     fontSize: 13,

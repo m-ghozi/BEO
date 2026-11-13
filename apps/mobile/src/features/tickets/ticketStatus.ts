@@ -1,8 +1,8 @@
 import type { TicketDTO } from "@beo/contracts";
 
 export interface TicketStatusMeta {
-  label: "Checked In" | "Cancelled" | "Valid";
-  badgeStyle: "checkedIn" | "cancelled" | "valid";
+  label: "Checked In" | "Cancelled" | "Pending Payment" | "Valid";
+  badgeStyle: "checkedIn" | "cancelled" | "pending" | "valid";
 }
 
 /**
@@ -16,6 +16,9 @@ export function getTicketStatusMeta(
   }
   if (ticket.status === "cancelled") {
     return { label: "Cancelled", badgeStyle: "cancelled" };
+  }
+  if (ticket.status === "pending") {
+    return { label: "Pending Payment", badgeStyle: "pending" };
   }
   return { label: "Valid", badgeStyle: "valid" };
 }

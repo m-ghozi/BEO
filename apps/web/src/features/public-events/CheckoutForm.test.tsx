@@ -406,6 +406,7 @@ describe("CheckoutForm", () => {
               attendee_email: "dana@example.com",
               ticket_code: "BEO-FREE-001",
               qr_signature: "sig123",
+              claim_token: "claim-tok+123",
               status: "valid",
               created_at: "2026-11-13T00:00:00Z",
             },
@@ -452,5 +453,14 @@ describe("CheckoutForm", () => {
     await waitFor(() => {
       expect(screen.getByText(/registration confirmed|order confirmed/i)).toBeInTheDocument();
     });
+
+    expect(screen.getByText("claim-tok+123")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /claim ticket/i })).toHaveAttribute(
+      "href",
+      "/claim?token=claim-tok%2B123"
+    );
+    expect(
+      screen.getByRole("button", { name: /copy claim link/i })
+    ).toBeInTheDocument();
   });
 });

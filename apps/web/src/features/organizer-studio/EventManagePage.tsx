@@ -50,10 +50,10 @@ export function EventManagePage() {
 
   const [activeTab, setActiveTab] = useState<ManageTab>("sessions");
 
-  // Fetch events list to resolve event metadata if navigated directly
+  // Fetch organizer events list to resolve event metadata (including draft/completed/cancelled) if navigated directly
   const { data: eventsList = [] } = useQuery<EventDTO[]>({
-    queryKey: ["events"],
-    queryFn: () => apiFetch<EventDTO[]>("/v1/events"),
+    queryKey: ["organizer-events"],
+    queryFn: () => apiFetch<EventDTO[]>("/v1/organizer/events"),
     enabled: !stateEvent,
   });
 
