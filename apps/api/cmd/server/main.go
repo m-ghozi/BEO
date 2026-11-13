@@ -36,7 +36,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", allowOrigin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Accept, X-Requested-With")
 
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
@@ -104,7 +104,7 @@ func main() {
 		&http.Client{Timeout: 15 * time.Second},
 	)
 	callbackURL := envOrDefault("DUITKU_CALLBACK_URL", "http://localhost:8080/v1/webhooks/duitku")
-	returnURL := envOrDefault("DUITKU_RETURN_URL", "http://localhost:3000/orders/return")
+	returnURL := envOrDefault("DUITKU_RETURN_URL", "http://localhost:5173/orders/return")
 	paymentsSvc := payments.NewService(
 		pool,
 		identitySvc,

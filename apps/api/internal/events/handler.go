@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/cerdas-club/beo/apps/api/internal/identity"
 )
 
@@ -133,7 +135,13 @@ func (h *Handler) handleGetEventBySlug(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	evt, err := h.svc.GetEventBySlug(r.Context(), slug)
+	var evt Event
+	var err error
+	if _, parseErr := uuid.Parse(slug); parseErr == nil {
+		evt, err = h.svc.GetEventByID(r.Context(), slug)
+	} else {
+		evt, err = h.svc.GetEventBySlug(r.Context(), slug)
+	}
 	if err != nil {
 		if errors.Is(err, ErrEventNotFound) {
 			writeError(w, http.StatusNotFound, "event not found")

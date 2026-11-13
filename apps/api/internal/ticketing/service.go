@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"html"
 	"log"
+	"net/url"
 	"strings"
 	"time"
 
@@ -546,6 +547,9 @@ func (s *Service) AllocateAgencyQuota(ctx context.Context, eventID, actorID stri
 	err = tx.QueryRow(ctx, `
 		INSERT INTO event_agencies (id, event_id, agency_user_id, ticket_type_id, quota_limit, issued_count, status, created_at)
 		VALUES ($1, $2, $3, $4, $5, 0, 'active', NOW())
+		ON CONFLICT (event_id, agency_user_id, ticket_type_id) DO UPDATE
+		SET quota_limit = event_agencies.quota_limit + EXCLUDED.quota_limit,
+		    status = 'active'
 		RETURNING id, event_id, agency_user_id, ticket_type_id, quota_limit, issued_count, status, created_at
 	`, eaID, eventID, in.AgencyUserID, in.TicketTypeID, in.QuotaLimit).Scan(
 		&ea.ID, &ea.EventID, &ea.AgencyUserID, &ea.TicketTypeID,
@@ -557,6 +561,77 @@ func (s *Service) AllocateAgencyQuota(ctx context.Context, eventID, actorID stri
 
 	if err := tx.Commit(ctx); err != nil {
 		return EventAgency{}, fmt.Errorf("commit agency allocation tx: %w", err)
+	}
+
+	return ea, nil
+}
+
+// ReclaimAgencyQuota reclaims unused quota from an agency allocation back to the ticket type pool.
+func (s *Service) ReclaimAgencyQuota(ctx context.Context, eventID, actorID, agencyID, ticketTypeID string, amount int) (EventAgency, error) {
+	eventID = strings.TrimSpace(eventID)
+	actorID = strings.TrimSpace(actorID)
+	agencyID = strings.TrimSpace(agencyID)
+	ticketTypeID = strings.TrimSpace(ticketTypeID)
+
+	if eventID == "" || actorID == "" || agencyID == "" || ticketTypeID == "" || amount <= 0 {
+		return EventAgency{}, ErrInvalidInput
+	}
+
+	if err := s.requireOrganizerOrCoOrganizer(ctx, eventID, actorID); err != nil {
+		return EventAgency{}, err
+	}
+
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return EventAgency{}, fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var ea EventAgency
+	err = tx.QueryRow(ctx, `
+		SELECT id, event_id, agency_user_id, ticket_type_id, quota_limit, issued_count, status, created_at
+		FROM event_agencies
+		WHERE event_id = $1 AND (agency_user_id = $2 OR id = $2) AND ticket_type_id = $3
+		FOR UPDATE
+	`, eventID, agencyID, ticketTypeID).Scan(
+		&ea.ID, &ea.EventID, &ea.AgencyUserID, &ea.TicketTypeID,
+		&ea.QuotaLimit, &ea.IssuedCount, &ea.Status, &ea.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return EventAgency{}, fmt.Errorf("%w: agency allocation not found", ErrInvalidInput)
+		}
+		return EventAgency{}, fmt.Errorf("lock event_agencies: %w", err)
+	}
+
+	unused := ea.QuotaLimit - ea.IssuedCount
+	if amount > unused {
+		return EventAgency{}, fmt.Errorf("%w: reclaim amount exceeds unused quota (%d)", ErrInvalidInput, unused)
+	}
+
+	err = tx.QueryRow(ctx, `
+		UPDATE event_agencies
+		SET quota_limit = quota_limit - $1
+		WHERE id = $2
+		RETURNING id, event_id, agency_user_id, ticket_type_id, quota_limit, issued_count, status, created_at
+	`, amount, ea.ID).Scan(
+		&ea.ID, &ea.EventID, &ea.AgencyUserID, &ea.TicketTypeID,
+		&ea.QuotaLimit, &ea.IssuedCount, &ea.Status, &ea.CreatedAt,
+	)
+	if err != nil {
+		return EventAgency{}, fmt.Errorf("update event_agencies quota_limit: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		UPDATE ticket_types
+		SET allocated_agency_quota = GREATEST(0, allocated_agency_quota - $1)
+		WHERE id = $2 AND event_id = $3
+	`, amount, ticketTypeID, eventID); err != nil {
+		return EventAgency{}, fmt.Errorf("update ticket_types allocated_agency_quota: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return EventAgency{}, fmt.Errorf("commit agency reclaim tx: %w", err)
 	}
 
 	return ea, nil
@@ -918,6 +993,18 @@ func SendOrderTicketEmails(ctx context.Context, db *pgxpool.Pool, mailer platfor
 			continue
 		}
 
+		claimSection := ""
+		if td.Ticket.ClaimToken != nil && *td.Ticket.ClaimToken != "" {
+			claimToken := *td.Ticket.ClaimToken
+			claimURL := "http://localhost:5173/claim?token=" + url.QueryEscape(claimToken)
+			claimSection = fmt.Sprintf(
+				"<p>Claim Token: <strong>%s</strong></p>"+
+					"<p><a href=\"%s\">Claim Your Ticket</a></p>",
+				html.EscapeString(claimToken),
+				html.EscapeString(claimURL),
+			)
+		}
+
 		cleanTitle := strings.NewReplacer("\r", " ", "\n", " ").Replace(td.EventTitle)
 		subject := fmt.Sprintf("Your BEO Ticket: %s (%s)", cleanTitle, td.Ticket.TicketCode)
 		htmlBody := fmt.Sprintf(
@@ -925,6 +1012,7 @@ func SendOrderTicketEmails(ctx context.Context, db *pgxpool.Pool, mailer platfor
 				"<p>Hi %s,</p>"+
 				"<p>Your ticket for <strong>%s</strong> (%s) at <strong>%s</strong> on %s is ready.</p>"+
 				"<p>Ticket Code: <strong>%s</strong></p>"+
+				"%s"+
 				"<p>Your QR code and printable PDF ticket are attached.</p>",
 			html.EscapeString(td.Ticket.AttendeeName),
 			html.EscapeString(td.EventTitle),
@@ -932,6 +1020,7 @@ func SendOrderTicketEmails(ctx context.Context, db *pgxpool.Pool, mailer platfor
 			html.EscapeString(td.Venue),
 			html.EscapeString(td.StartAt.Format("02 Jan 2006 15:04 MST")),
 			html.EscapeString(td.Ticket.TicketCode),
+			claimSection,
 		)
 
 		if err := mailer.SendTicketEmail(ctx, td.Ticket.AttendeeEmail, subject, htmlBody, pdfBytes, qrPNG); err != nil {

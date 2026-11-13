@@ -36,6 +36,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/events/{eventID}/orders", h.handleReserveOrder)
 	mux.Handle("GET /v1/events/{eventID}/agencies", auth(http.HandlerFunc(h.handleListEventAgencies)))
 	mux.Handle("POST /v1/events/{eventID}/agencies", auth(http.HandlerFunc(h.handleAllocateAgencyQuota)))
+	mux.Handle("POST /v1/events/{eventID}/agencies/{agencyID}/reclaim", auth(http.HandlerFunc(h.handleReclaimAgencyQuota)))
 	mux.Handle("POST /v1/agency/events/{eventID}/issue", auth(http.HandlerFunc(h.handleIssueAgencyTickets)))
 	mux.Handle("POST /v1/tickets/claim", auth(http.HandlerFunc(h.handleClaimTicket)))
 	mux.Handle("GET /v1/me/tickets", auth(http.HandlerFunc(h.handleListMyTickets)))
@@ -164,6 +165,33 @@ func (h *Handler) handleAllocateAgencyQuota(w http.ResponseWriter, r *http.Reque
 	}
 
 	writeJSON(w, http.StatusCreated, ea)
+}
+
+func (h *Handler) handleReclaimAgencyQuota(w http.ResponseWriter, r *http.Request) {
+	claims, ok := identity.UserFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	eventID := strings.TrimSpace(r.PathValue("eventID"))
+	agencyID := strings.TrimSpace(r.PathValue("agencyID"))
+
+	var body struct {
+		TicketTypeID string `json:"ticket_type_id"`
+		Amount       int    `json:"amount"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	ea, err := h.svc.ReclaimAgencyQuota(r.Context(), eventID, claims.UserID, agencyID, body.TicketTypeID, body.Amount)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, ea)
 }
 
 func (h *Handler) handleIssueAgencyTickets(w http.ResponseWriter, r *http.Request) {

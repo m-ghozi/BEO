@@ -160,9 +160,9 @@ func (s *Service) HandleDuitkuWebhook(ctx context.Context, payload DuitkuCallbac
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	var paymentStatus string
+	var eventID, paymentStatus string
 	var totalAmount float64
-	err = tx.QueryRow(ctx, "SELECT payment_status, total_amount::float8 FROM orders WHERE id = $1 FOR UPDATE", payload.MerchantOrderID).Scan(&paymentStatus, &totalAmount)
+	err = tx.QueryRow(ctx, "SELECT event_id, payment_status, total_amount::float8 FROM orders WHERE id = $1 FOR UPDATE", payload.MerchantOrderID).Scan(&eventID, &paymentStatus, &totalAmount)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrOrderNotFound
@@ -175,6 +175,22 @@ func (s *Service) HandleDuitkuWebhook(ctx context.Context, payload DuitkuCallbac
 	}
 
 	if paymentStatus == "paid" {
+		return nil
+	}
+	if paymentStatus == "expired" {
+		reconciled, err := s.reconcileLateDuitkuOrderTx(ctx, tx, eventID, payload.MerchantOrderID, strings.TrimSpace(payload.Reference), parsedAmount)
+		if err != nil {
+			return err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return fmt.Errorf("commit duitku late-payment tx: %w", err)
+		}
+		if !reconciled {
+			return ErrInvalidOrderState
+		}
+		if s.mailer != nil {
+			ticketing.SendOrderTicketEmails(ctx, s.db, s.mailer, s.qrHMACSecret, payload.MerchantOrderID)
+		}
 		return nil
 	}
 	if paymentStatus != "pending" {
@@ -415,4 +431,86 @@ func (s *Service) rejectOrderTx(ctx context.Context, tx pgx.Tx, orderID string) 
 	}
 
 	return nil
+}
+
+func (s *Service) reconcileLateDuitkuOrderTx(ctx context.Context, tx pgx.Tx, eventID, orderID, reference string, amount float64) (bool, error) {
+	tickets, countsByType, err := s.lockOrderTickets(ctx, tx, orderID)
+	if err != nil {
+		return false, err
+	}
+
+	overbooked := false
+	for ttID, qty := range countsByType {
+		var quota, soldCount, reservedCount, allocatedAgencyQuota int
+		if err := tx.QueryRow(ctx, `
+			SELECT quota, sold_count, reserved_count, allocated_agency_quota
+			FROM ticket_types
+			WHERE id = $1
+			FOR UPDATE
+		`, ttID).Scan(&quota, &soldCount, &reservedCount, &allocatedAgencyQuota); err != nil {
+			return false, fmt.Errorf("lock ticket type for late payment: %w", err)
+		}
+		available := quota - soldCount - reservedCount - allocatedAgencyQuota
+		if available < qty {
+			overbooked = true
+			break
+		}
+	}
+
+	auditCategory := "late_payment_reconciled"
+	if overbooked {
+		auditCategory = "late_payment_overbooked"
+	} else {
+		if _, err := tx.Exec(ctx, `
+			UPDATE orders
+			SET payment_status = 'paid',
+			    duitku_reference = COALESCE(NULLIF($1, ''), duitku_reference),
+			    updated_at = NOW()
+			WHERE id = $2
+		`, reference, orderID); err != nil {
+			return false, fmt.Errorf("reactivate expired order: %w", err)
+		}
+
+		for ttID, qty := range countsByType {
+			if _, err := tx.Exec(ctx, `
+				UPDATE ticket_types
+				SET sold_count = sold_count + $1
+				WHERE id = $2
+			`, qty, ttID); err != nil {
+				return false, fmt.Errorf("increment sold_count for late payment: %w", err)
+			}
+		}
+
+		for _, tk := range tickets {
+			qrSig := ticketing.SignQR(s.qrHMACSecret, tk.ticketCode, tk.eventID)
+			if _, err := tx.Exec(ctx, `
+				UPDATE tickets
+				SET status = 'valid', qr_signature = $1
+				WHERE id = $2
+			`, qrSig, tk.id); err != nil {
+				return false, fmt.Errorf("reactivate ticket for late payment: %w", err)
+			}
+		}
+
+		if err := s.ledgerSvc.RecordPaidOrder(ctx, tx, orderID); err != nil {
+			return false, fmt.Errorf("record late paid order in ledger: %w", err)
+		}
+	}
+
+	auditPayload, err := json.Marshal(map[string]any{
+		"order_id":         orderID,
+		"duitku_reference": reference,
+		"amount":           amount,
+	})
+	if err != nil {
+		return false, fmt.Errorf("marshal late payment audit payload: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO audit_events (id, event_id, actor_id, event_category, payload, created_at)
+		VALUES ($1, $2, NULL, $3, $4, NOW())
+	`, uuid.NewString(), eventID, auditCategory, auditPayload); err != nil {
+		return false, fmt.Errorf("insert late payment audit event: %w", err)
+	}
+
+	return !overbooked, nil
 }

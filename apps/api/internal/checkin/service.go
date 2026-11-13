@@ -26,12 +26,12 @@ var (
 
 // ScanResult represents the outcome of a QR check-in scan.
 type ScanResult struct {
-	TicketID      string    `json:"ticket_id,omitempty"`
-	TicketCode    string    `json:"ticket_code,omitempty"`
-	AttendeeName  string    `json:"attendee_name,omitempty"`
-	AttendeeEmail string    `json:"attendee_email,omitempty"`
-	CheckedInAt   time.Time `json:"checked_in_at,omitempty"`
-	Result        string    `json:"result"`
+	TicketID      string     `json:"ticket_id,omitempty"`
+	TicketCode    string     `json:"ticket_code,omitempty"`
+	AttendeeName  string     `json:"attendee_name,omitempty"`
+	AttendeeEmail string     `json:"attendee_email,omitempty"`
+	CheckedInAt   *time.Time `json:"checked_in_at,omitempty"`
+	Result        string     `json:"result"`
 }
 
 // Service handles atomic venue ticket check-in and fraud/audit logging.
@@ -66,7 +66,7 @@ func (s *Service) ScanQR(ctx context.Context, eventID, scannerUserID, qrPayload,
 	if eventID == "" || scannerUserID == "" || qrPayload == "" {
 		return ScanResult{}, ErrInvalidInput
 	}
-	if scanMode != "hid" && scanMode != "webcam" {
+	if scanMode != "hid" && scanMode != "webcam" && scanMode != "manual" {
 		return ScanResult{}, ErrInvalidInput
 	}
 
@@ -78,18 +78,25 @@ func (s *Service) ScanQR(ctx context.Context, eventID, scannerUserID, qrPayload,
 		return ScanResult{}, ErrForbidden
 	}
 
-	ticketCode, qrEventID, verifyErr := ticketing.VerifyQR(s.qrSecret, qrPayload)
-	if verifyErr != nil || qrEventID != eventID {
-		var ticketID string
-		reason := "invalid_signature"
-		if verifyErr == nil && qrEventID != eventID {
-			reason = "wrong_event"
-			_ = s.db.QueryRow(ctx, `SELECT id FROM tickets WHERE ticket_code = $1`, ticketCode).Scan(&ticketID)
+	var ticketCode string
+	if scanMode == "manual" && !strings.Contains(qrPayload, "|") {
+		ticketCode = qrPayload
+	} else {
+		var qrEventID string
+		var verifyErr error
+		ticketCode, qrEventID, verifyErr = ticketing.VerifyQR(s.qrSecret, qrPayload)
+		if verifyErr != nil || qrEventID != eventID {
+			var ticketID string
+			reason := "invalid_signature"
+			if verifyErr == nil && qrEventID != eventID {
+				reason = "wrong_event"
+				_ = s.db.QueryRow(ctx, `SELECT id FROM tickets WHERE ticket_code = $1`, ticketCode).Scan(&ticketID)
+			}
+			if logErr := s.recordFailedScan(ctx, ticketID, eventID, scannerUserID, scanMode, "invalid", "checkin_invalid", reason, ticketCode, ip, ua); logErr != nil {
+				return ScanResult{}, logErr
+			}
+			return ScanResult{TicketID: ticketID, TicketCode: ticketCode, Result: "invalid"}, ErrInvalidTicket
 		}
-		if logErr := s.recordFailedScan(ctx, ticketID, eventID, scannerUserID, scanMode, "invalid", "checkin_invalid", reason, ticketCode, ip, ua); logErr != nil {
-			return ScanResult{}, logErr
-		}
-		return ScanResult{TicketID: ticketID, TicketCode: ticketCode, Result: "invalid"}, ErrInvalidTicket
 	}
 
 	const atomicUpdate = `

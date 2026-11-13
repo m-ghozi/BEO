@@ -389,9 +389,14 @@ func (s *Service) PublishPost(ctx context.Context, eventID, actorID string, in C
 		}
 
 		if len(tokens) > 0 {
+			var eventSlug string
+			if err := s.db.QueryRow(ctx, "SELECT slug FROM events WHERE id = $1", eventID).Scan(&eventSlug); err != nil {
+				return post, fmt.Errorf("query event slug for push: %w", err)
+			}
 			data := map[string]string{
-				"event_id": eventID,
-				"post_id":  post.ID,
+				"event_id":   eventID,
+				"event_slug": eventSlug,
+				"post_id":    post.ID,
 			}
 			if err := s.pushNotifier.Send(ctx, tokens, post.Title, post.Body, data); err != nil {
 				return post, fmt.Errorf("send push notifications: %w", err)
